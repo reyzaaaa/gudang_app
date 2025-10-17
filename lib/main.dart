@@ -17,9 +17,8 @@ import 'package:gudang_app/features/outbound/screens/picking_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const String supabaseUrl = String.fromEnvironment('https://ixchhvnyekrxcuzbnoam.supabase.co');
-const String supabaseAnonKey = String.fromEnvironment('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4Y2hodm55ZWtyeGN1emJub2FtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAyMTc3MTAsImV4cCI6MjA3NTc5MzcxMH0.D-Vz_21RTZLgLOBrqr7RZqrmxPw9tYQ8ZickZIKJsH4');
-
+const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+const String supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('id_ID', null);
