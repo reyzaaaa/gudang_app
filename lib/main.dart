@@ -44,22 +44,13 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        // Skema Warna Baru berbasis Teal
+        // PERUBAHAN: Skema warna diubah menjadi biru muda
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF00796B), // Warna utama: Teal yang dalam
+          seedColor: const Color(0xFFADC8FF), // Warna biru muda dari gambar
           brightness: Brightness.light,
-          primary: const Color(0xFF00796B),
-          surface: Colors.white,
-          background: Colors.grey[50],
+          primary: const Color(0xFF005AC1),   // Biru yang lebih kuat untuk teks & ikon aktif
         ),
-
-        // Menggunakan Font 'Inter' dari Google Fonts
-        textTheme: GoogleFonts.interTextTheme(baseTextTheme).copyWith(
-          headlineSmall: GoogleFonts.inter(
-            textStyle: baseTextTheme.headlineSmall,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        textTheme: GoogleFonts.interTextTheme(baseTextTheme),
       ),
       routerConfig: _router,
       localizationsDelegates: const [
@@ -76,7 +67,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// Placeholder ini sekarang menunjuk ke MasterDataScreen yang sesungguhnya
 class DataBahanBakuScreen extends StatelessWidget {
   const DataBahanBakuScreen({super.key});
   @override
@@ -133,8 +123,9 @@ final GoRouter _router = GoRouter(
               pageBuilder: (context, state) => CustomTransitionPage<void>(
                 key: state.pageKey,
                 child: const AddInboundScreen(),
-                transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-                    FadeTransition(opacity: animation, child: child),
+                transitionsBuilder:
+                    (context, animation, secondaryAnimation, child) =>
+                        FadeTransition(opacity: animation, child: child),
               ),
             ),
             GoRoute(

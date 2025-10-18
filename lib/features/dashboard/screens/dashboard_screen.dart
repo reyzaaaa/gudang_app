@@ -49,89 +49,126 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final int selectedIndex = _calculateSelectedIndex(context);
-    final theme = Theme.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final int selectedIndex = _calculateSelectedIndex(context);
+        final String location = GoRouterState.of(context).matchedLocation;
+        final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        shape: Border(
-          bottom: BorderSide(color: Colors.grey.shade300, width: 1),
-        ),
-        title: Text(
-          _getAppBarTitle(selectedIndex),
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_outlined),
-            tooltip: 'Logout',
-            onPressed: () async {
-              await supabase.auth.signOut();
-              if (context.mounted) {
-                context.go('/login');
-              }
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Row(
-        children: <Widget>[
-          NavigationRail(
-            selectedIndex: selectedIndex,
-            onDestinationSelected: (index) => _onDestinationSelected(index, context),
-            extended: true,
-            minExtendedWidth: 240,
-            backgroundColor: Colors.white,
-            useIndicator: true,
-            indicatorShape: const StadiumBorder(),
-            indicatorColor: theme.colorScheme.primary.withOpacity(0.1),
-            groupAlignment: -0.8,
-            selectedIconTheme: IconThemeData(color: theme.colorScheme.primary),
-            selectedLabelTextStyle: TextStyle(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
+        const double mobileBreakpoint = 700;
+        final bool isDesktop = constraints.maxWidth > mobileBreakpoint;
+
+        final bool showFab = location == '/inbound' || location == '/outbound';
+        final VoidCallback? fabAction = location == '/inbound' 
+          ? () => context.go('/inbound/add') 
+          : (location == '/outbound' ? () => context.go('/outbound/add') : null);
+
+        // Definisikan warna biru muda di sini
+        final mobileNavbarColor = const Color(0xFFD6E4FF);
+
+        return Scaffold(
+          appBar: AppBar(
+            backgroundColor: isDesktop ? Colors.white : mobileNavbarColor,
+            elevation: 0,
+            shape: isDesktop ? Border(bottom: BorderSide(color: Colors.grey.shade300, width: 1)) : null,
+            title: Text(
+              _getAppBarTitle(selectedIndex),
+              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
             ),
-            unselectedIconTheme: IconThemeData(color: Colors.grey.shade600),
-            unselectedLabelTextStyle: TextStyle(
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.normal,
-               fontSize: 14,
-            ),
-            destinations: const <NavigationRailDestination>[
-              NavigationRailDestination(
-                icon: Icon(Icons.move_to_inbox_outlined),
-                selectedIcon: Icon(Icons.move_to_inbox),
-                label: Text('Penerimaan Barang'),
-                padding: EdgeInsets.symmetric(vertical: 8),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.logout_outlined, color: Colors.black54),
+                tooltip: 'Logout',
+                onPressed: () async {
+                  await supabase.auth.signOut();
+                  if (context.mounted) {
+                    context.go('/login');
+                  }
+                },
               ),
-              NavigationRailDestination(
-                icon: Icon(Icons.outbox_outlined),
-                selectedIcon: Icon(Icons.outbox),
-                label: Text('Pengeluaran Barang'),
-                padding: EdgeInsets.symmetric(vertical: 8),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.inventory_2_outlined),
-                selectedIcon: Icon(Icons.inventory_2),
-                label: Text('Data Bahan Baku'),
-                padding: EdgeInsets.symmetric(vertical: 8),
-              ),
+              const SizedBox(width: 8),
             ],
           ),
-          VerticalDivider(thickness: 1, width: 1, color: Colors.grey.shade300),
-          Expanded(
-            child: Container(
-              color: Colors.grey[100],
-              child: widget.child,
+          
+          body: isDesktop 
+            ? _buildDesktopLayout(context, selectedIndex, theme)
+            : Container(color: Colors.white, child: widget.child), // Konten mobile dengan bg putih
+
+          bottomNavigationBar: isDesktop 
+            ? null 
+            : BottomNavigationBar(
+                backgroundColor: mobileNavbarColor,
+                elevation: 0,
+                type: BottomNavigationBarType.fixed,
+                currentIndex: selectedIndex,
+                onTap: (index) => _onDestinationSelected(index, context),
+                selectedItemColor: theme.colorScheme.primary,
+                unselectedItemColor: Colors.grey.shade700,
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.move_to_inbox_outlined),
+                    label: 'Penerimaan',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.outbox_outlined),
+                    label: 'Pengeluaran',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.inventory_2_outlined),
+                    label: 'Data Master',
+                  ),
+                ],
+              ),
+              
+          floatingActionButton: showFab ? FloatingActionButton(
+            onPressed: fabAction,
+            backgroundColor: theme.colorScheme.primary,
+            foregroundColor: Colors.white,
+            child: const Icon(Icons.add),
+          ) : null,
+        );
+      },
+    );
+  }
+
+  Widget _buildDesktopLayout(BuildContext context, int selectedIndex, ThemeData theme) {
+    return Row(
+      children: <Widget>[
+        NavigationRail(
+          selectedIndex: selectedIndex,
+          onDestinationSelected: (index) => _onDestinationSelected(index, context),
+          extended: true,
+          minExtendedWidth: 240,
+          backgroundColor: Colors.white,
+          useIndicator: true,
+          indicatorShape: const StadiumBorder(),
+          indicatorColor: theme.colorScheme.primary.withOpacity(0.1),
+          groupAlignment: -0.8,
+          selectedIconTheme: IconThemeData(color: theme.colorScheme.primary),
+          unselectedIconTheme: IconThemeData(color: Colors.grey.shade600),
+          destinations: const <NavigationRailDestination>[
+            NavigationRailDestination(
+              icon: Icon(Icons.move_to_inbox_outlined),
+              label: Text('Penerimaan Barang'),
             ),
+            NavigationRailDestination(
+              icon: Icon(Icons.outbox_outlined),
+              label: Text('Pengeluaran Barang'),
+            ),
+            NavigationRailDestination(
+              icon: Icon(Icons.inventory_2_outlined),
+              label: Text('Data Bahan Baku'),
+            ),
+          ],
+        ),
+        VerticalDivider(thickness: 1, width: 1, color: Colors.grey.shade300),
+        Expanded(
+          child: Container(
+            color: Colors.grey[50],
+            child: widget.child,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
