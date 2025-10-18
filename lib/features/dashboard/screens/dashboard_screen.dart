@@ -15,8 +15,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  // State baru untuk mengontrol status navigasi (terbuka/tertutup)
-  bool _isNavExpanded = true;
 
   int _calculateSelectedIndex(BuildContext context) {
     final String location = GoRouterState.of(context).matchedLocation;
@@ -51,83 +49,133 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final int selectedIndex = _calculateSelectedIndex(context);
-    final String location = GoRouterState.of(context).matchedLocation;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final int selectedIndex = _calculateSelectedIndex(context);
+        final String location = GoRouterState.of(context).matchedLocation;
+        final theme = Theme.of(context);
 
-    final bool showFab = location == '/inbound' || location == '/outbound';
-    final VoidCallback? fabAction = location == '/inbound' 
-      ? () => context.go('/inbound/add') 
-      : (location == '/outbound' ? () => context.go('/outbound/add') : null);
+        // Tentukan breakpoint untuk beralih antara tampilan mobile dan desktop
+        const double mobileBreakpoint = 600;
+        final bool isDesktop = constraints.maxWidth > mobileBreakpoint;
 
-    final navbarColor = Colors.blue.shade50;
+        final bool showFab = location == '/inbound' || location == '/outbound';
+        final VoidCallback? fabAction = location == '/inbound' 
+          ? () => context.go('/inbound/add') 
+          : (location == '/outbound' ? () => context.go('/outbound/add') : null);
 
-    return Scaffold(
-      backgroundColor: navbarColor,
-      appBar: AppBar(
-        backgroundColor: navbarColor,
-        elevation: 0,
-        // Tombol baru untuk membuka/menutup navigasi
-        leading: IconButton(
-          icon: Icon(_isNavExpanded ? Icons.menu_open : Icons.menu),
-          onPressed: () {
-            setState(() {
-              _isNavExpanded = !_isNavExpanded;
-            });
-          },
-        ),
-        title: Text(
-          _getAppBarTitle(selectedIndex),
-          style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_outlined, color: Colors.black54),
-            tooltip: 'Logout',
-            onPressed: () async {
-              await supabase.auth.signOut();
-              if (context.mounted) {
-                context.go('/login');
-              }
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Row(
-        children: <Widget>[
-          // Panel navigasi sekarang dibungkus dengan AnimatedContainer
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            width: _isNavExpanded ? 256 : 96, // Lebar berubah sesuai state
-            padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 16.0),
-            child: Column(
-              children: [
-                _NavButton(
-                  label: 'Penerimaan Barang',
-                  icon: Icons.move_to_inbox_outlined,
-                  isSelected: selectedIndex == 0,
-                  isExpanded: _isNavExpanded, // Kirim state ke tombol
-                  onTap: () => _onDestinationSelected(0, context),
-                ),
-                const SizedBox(height: 12),
-                _NavButton(
-                  label: 'Pengeluaran Barang',
-                  icon: Icons.outbox_outlined,
-                  isSelected: selectedIndex == 1,
-                  isExpanded: _isNavExpanded,
-                  onTap: () => _onDestinationSelected(1, context),
-                ),
-                const SizedBox(height: 12),
-                _NavButton(
-                  label: 'Data Bahan Baku',
-                  icon: Icons.inventory_2_outlined,
-                  isSelected: selectedIndex == 2,
-                  isExpanded: _isNavExpanded,
-                  onTap: () => _onDestinationSelected(2, context),
-                ),
-              ],
+        return Scaffold(
+          appBar: AppBar(
+            backgroundColor: isDesktop ? Colors.blue.shade50 : Colors.white,
+            elevation: 0,
+            title: Text(
+              _getAppBarTitle(selectedIndex),
+              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
             ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.logout_outlined, color: Colors.black54),
+                tooltip: 'Logout',
+                onPressed: () async {
+                  await supabase.auth.signOut();
+                  if (context.mounted) {
+                    context.go('/login');
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+          
+          // Tampilan body akan berbeda antara desktop dan mobile
+          body: isDesktop 
+            ? _buildDesktopLayout(context, selectedIndex, theme) // Tampilan untuk layar lebar
+            : widget.child, // Tampilan untuk layar sempit (HP)
+
+          // Navigasi bawah hanya muncul di layar sempit (HP)
+          bottomNavigationBar: isDesktop 
+            ? null 
+            : BottomNavigationBar(
+                currentIndex: selectedIndex,
+                onTap: (index) => _onDestinationSelected(index, context),
+                items: const [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.move_to_inbox_outlined),
+                    activeIcon: Icon(Icons.move_to_inbox),
+                    label: 'Penerimaan',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.outbox_outlined),
+                    activeIcon: Icon(Icons.outbox),
+                    label: 'Pengeluaran',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.inventory_2_outlined),
+                    activeIcon: Icon(Icons.inventory_2),
+                    label: 'Data Master',
+                  ),
+                ],
+              ),
+              
+          floatingActionButton: showFab ? FloatingActionButton(
+            onPressed: fabAction,
+            child: const Icon(Icons.add),
+          ) : null,
+        );
+      },
+    );
+  }
+
+  // Widget untuk membangun layout versi Desktop/Layar Lebar
+  Widget _buildDesktopLayout(BuildContext context, int selectedIndex, ThemeData theme) {
+    return Container(
+      color: Colors.blue.shade50, // Latar belakang utama
+      child: Row(
+        children: <Widget>[
+          // Kita kembalikan ke NavigationRail standar karena lebih mudah diatur
+          NavigationRail(
+            selectedIndex: selectedIndex,
+            onDestinationSelected: (index) => _onDestinationSelected(index, context),
+            extended: true,
+            minExtendedWidth: 240,
+            backgroundColor: Colors.transparent, // Transparan agar menyatu dengan latar
+            elevation: 0,
+            useIndicator: true,
+            indicatorShape: const StadiumBorder(),
+            indicatorColor: theme.colorScheme.primary.withOpacity(0.1),
+            groupAlignment: -0.8,
+            selectedIconTheme: IconThemeData(color: theme.colorScheme.primary),
+            selectedLabelTextStyle: TextStyle(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+            unselectedIconTheme: IconThemeData(color: Colors.grey.shade600),
+            unselectedLabelTextStyle: TextStyle(
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.normal,
+               fontSize: 14,
+            ),
+            destinations: const <NavigationRailDestination>[
+              NavigationRailDestination(
+                icon: Icon(Icons.move_to_inbox_outlined),
+                selectedIcon: Icon(Icons.move_to_inbox),
+                label: Text('Penerimaan Barang'),
+                padding: EdgeInsets.symmetric(vertical: 8),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.outbox_outlined),
+                selectedIcon: Icon(Icons.outbox),
+                label: Text('Pengeluaran Barang'),
+                padding: EdgeInsets.symmetric(vertical: 8),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.inventory_2_outlined),
+                selectedIcon: Icon(Icons.inventory_2),
+                label: Text('Data Bahan Baku'),
+                padding: EdgeInsets.symmetric(vertical: 8),
+              ),
+            ],
           ),
           
           Expanded(
@@ -143,80 +191,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
         ],
-      ),
-      floatingActionButton: showFab ? FloatingActionButton(
-        onPressed: fabAction,
-        child: const Icon(Icons.add),
-      ) : null,
-    );
-  }
-}
-
-// Widget tombol navigasi sekarang menerima parameter isExpanded
-class _NavButton extends StatelessWidget {
-  const _NavButton({
-    required this.label,
-    required this.icon,
-    required this.isSelected,
-    required this.isExpanded, // Parameter baru
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool isSelected;
-  final bool isExpanded;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final Color backgroundColor = isSelected ? theme.colorScheme.primary.withOpacity(0.15) : Colors.white;
-    final Color foregroundColor = isSelected ? theme.colorScheme.primary : Colors.grey.shade700;
-
-    return Card(
-      elevation: isSelected ? 2 : 1,
-      shadowColor: isSelected ? theme.colorScheme.primary.withOpacity(0.2) : Colors.black.withOpacity(0.1),
-      color: backgroundColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: isSelected ? BorderSide(color: theme.colorScheme.primary, width: 1.5) : BorderSide(color: Colors.grey.shade200),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            transitionBuilder: (child, animation) => FadeTransition(opacity: animation, child: child),
-            child: isExpanded
-              // Tampilan saat navigasi terbuka (expanded)
-              ? Row(
-                  key: const ValueKey('expanded'),
-                  children: [
-                    Icon(icon, color: foregroundColor),
-                    const SizedBox(width: 16.0),
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          color: foregroundColor,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                  ],
-                )
-              // Tampilan saat navigasi tertutup (collapsed)
-              : Row(
-                  key: const ValueKey('collapsed'),
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [Icon(icon, color: foregroundColor)],
-                ),
-          ),
-        ),
       ),
     );
   }
