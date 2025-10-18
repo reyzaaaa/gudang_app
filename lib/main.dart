@@ -19,6 +19,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
 const String supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('id_ID', null);
@@ -43,14 +44,22 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
+        // Skema Warna Baru berbasis Teal
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF00796B),
+          seedColor: const Color(0xFF00796B), // Warna utama: Teal yang dalam
           brightness: Brightness.light,
           primary: const Color(0xFF00796B),
           surface: Colors.white,
           background: Colors.grey[50],
         ),
-        textTheme: GoogleFonts.interTextTheme(baseTextTheme),
+
+        // Menggunakan Font 'Inter' dari Google Fonts
+        textTheme: GoogleFonts.interTextTheme(baseTextTheme).copyWith(
+          headlineSmall: GoogleFonts.inter(
+            textStyle: baseTextTheme.headlineSmall,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
       routerConfig: _router,
       localizationsDelegates: const [
@@ -67,6 +76,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// Placeholder ini sekarang menunjuk ke MasterDataScreen yang sesungguhnya
 class DataBahanBakuScreen extends StatelessWidget {
   const DataBahanBakuScreen({super.key});
   @override
@@ -124,11 +134,11 @@ final GoRouter _router = GoRouter(
                 key: state.pageKey,
                 child: const AddInboundScreen(),
                 transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-                        FadeTransition(opacity: animation, child: child),
+                    FadeTransition(opacity: animation, child: child),
               ),
             ),
             GoRoute(
-              path: ':transactionId', // Menggunakan ID di URL
+              path: ':transactionId',
               builder: (context, state) {
                 final transactionId = int.tryParse(state.pathParameters['transactionId'] ?? '');
                 if (transactionId == null) {
@@ -159,7 +169,7 @@ final GoRouter _router = GoRouter(
               },
             ),
             GoRoute(
-              path: ':transactionId', // Menggunakan ID di URL
+              path: ':transactionId',
               builder: (context, state) {
                 final transactionId = int.tryParse(state.pathParameters['transactionId'] ?? '');
                  if (transactionId == null) {

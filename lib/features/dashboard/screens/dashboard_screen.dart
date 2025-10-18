@@ -49,97 +49,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final int selectedIndex = _calculateSelectedIndex(context);
-        final String location = GoRouterState.of(context).matchedLocation;
-        final theme = Theme.of(context);
+    final int selectedIndex = _calculateSelectedIndex(context);
+    final theme = Theme.of(context);
 
-        // Tentukan breakpoint untuk beralih antara tampilan mobile dan desktop
-        const double mobileBreakpoint = 600;
-        final bool isDesktop = constraints.maxWidth > mobileBreakpoint;
-
-        final bool showFab = location == '/inbound' || location == '/outbound';
-        final VoidCallback? fabAction = location == '/inbound' 
-          ? () => context.go('/inbound/add') 
-          : (location == '/outbound' ? () => context.go('/outbound/add') : null);
-
-        return Scaffold(
-          appBar: AppBar(
-            backgroundColor: isDesktop ? Colors.blue.shade50 : Colors.white,
-            elevation: 0,
-            title: Text(
-              _getAppBarTitle(selectedIndex),
-              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.logout_outlined, color: Colors.black54),
-                tooltip: 'Logout',
-                onPressed: () async {
-                  await supabase.auth.signOut();
-                  if (context.mounted) {
-                    context.go('/login');
-                  }
-                },
-              ),
-              const SizedBox(width: 8),
-            ],
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        shape: Border(
+          bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+        ),
+        title: Text(
+          _getAppBarTitle(selectedIndex),
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout_outlined),
+            tooltip: 'Logout',
+            onPressed: () async {
+              await supabase.auth.signOut();
+              if (context.mounted) {
+                context.go('/login');
+              }
+            },
           ),
-          
-          // Tampilan body akan berbeda antara desktop dan mobile
-          body: isDesktop 
-            ? _buildDesktopLayout(context, selectedIndex, theme) // Tampilan untuk layar lebar
-            : widget.child, // Tampilan untuk layar sempit (HP)
-
-          // Navigasi bawah hanya muncul di layar sempit (HP)
-          bottomNavigationBar: isDesktop 
-            ? null 
-            : BottomNavigationBar(
-                currentIndex: selectedIndex,
-                onTap: (index) => _onDestinationSelected(index, context),
-                items: const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.move_to_inbox_outlined),
-                    activeIcon: Icon(Icons.move_to_inbox),
-                    label: 'Penerimaan',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.outbox_outlined),
-                    activeIcon: Icon(Icons.outbox),
-                    label: 'Pengeluaran',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.inventory_2_outlined),
-                    activeIcon: Icon(Icons.inventory_2),
-                    label: 'Data Master',
-                  ),
-                ],
-              ),
-              
-          floatingActionButton: showFab ? FloatingActionButton(
-            onPressed: fabAction,
-            child: const Icon(Icons.add),
-          ) : null,
-        );
-      },
-    );
-  }
-
-  // Widget untuk membangun layout versi Desktop/Layar Lebar
-  Widget _buildDesktopLayout(BuildContext context, int selectedIndex, ThemeData theme) {
-    return Container(
-      color: Colors.blue.shade50, // Latar belakang utama
-      child: Row(
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Row(
         children: <Widget>[
-          // Kita kembalikan ke NavigationRail standar karena lebih mudah diatur
           NavigationRail(
             selectedIndex: selectedIndex,
             onDestinationSelected: (index) => _onDestinationSelected(index, context),
             extended: true,
             minExtendedWidth: 240,
-            backgroundColor: Colors.transparent, // Transparan agar menyatu dengan latar
-            elevation: 0,
+            backgroundColor: Colors.white,
             useIndicator: true,
             indicatorShape: const StadiumBorder(),
             indicatorColor: theme.colorScheme.primary.withOpacity(0.1),
@@ -177,17 +123,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ],
           ),
-          
+          VerticalDivider(thickness: 1, width: 1, color: Colors.grey.shade300),
           Expanded(
             child: Container(
-              decoration: BoxDecoration(
-                 color: Colors.grey[100],
-                 borderRadius: const BorderRadius.only(topLeft: Radius.circular(24))
-              ),
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(topLeft: Radius.circular(24)),
-                child: widget.child,
-              ),
+              color: Colors.grey[100],
+              child: widget.child,
             ),
           ),
         ],

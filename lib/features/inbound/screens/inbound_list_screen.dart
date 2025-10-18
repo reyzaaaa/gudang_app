@@ -13,151 +13,163 @@ class InboundListScreen extends ConsumerWidget {
     final selectedDateNotifier = ref.read(selectedDateProvider.notifier);
     final historyAsyncValue = ref.watch(inboundHistoryProvider);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 16, 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                'HISTORI PENERIMAAN',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-              ),
-              TextButton.icon(
-                onPressed: () async {
-                  final pickedDate = await showDatePicker(
-                    context: context,
-                    initialDate: selectedDate,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime.now(),
-                    locale: const Locale('id', 'ID'),
-                  );
-                  if (pickedDate != null) {
-                    selectedDateNotifier.state = pickedDate;
-                  }
-                },
-                icon: const Icon(Icons.calendar_month_outlined),
-                label: Text(DateFormat('d MMM yyyy', 'id_ID').format(selectedDate)),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1, thickness: 1, indent: 24, endIndent: 24),
-        Expanded(
-          child: historyAsyncValue.when(
-            data: (transactions) {
-              if (transactions.isEmpty) {
-                return const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.inbox_outlined, size: 80, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text(
-                        'Tidak ada transaksi pada tanggal ini.',
-                        style: TextStyle(fontSize: 18, color: Colors.black54),
+    return Scaffold(
+      backgroundColor: Colors.transparent, // Membuat latar transparan
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 16, 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  'HISTORI PENERIMAAN',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
                       ),
-                    ],
-                  ),
-                );
-              }
-              return RefreshIndicator(
-                onRefresh: () => ref.refresh(inboundHistoryProvider.future),
-                child: ListView.builder(
-                  padding: const EdgeInsets.only(top: 8, bottom: 8),
-                  itemCount: transactions.length,
-                  itemBuilder: (context, index) {
-                    final trx = transactions[index];
-                    final item = trx['items'];
-                    final date = DateTime.parse(trx['transaction_date']);
-                    final formattedDate =
-                        DateFormat('d MMMM yyyy, HH:mm', 'id_ID').format(date);
-                    final status = trx['status'] ?? 'pending';
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    final pickedDate = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now(),
+                      locale: const Locale('id', 'ID'),
+                    );
+                    if (pickedDate != null) {
+                      selectedDateNotifier.state = pickedDate;
+                    }
+                  },
+                  icon: const Icon(Icons.calendar_month_outlined),
+                  label: Text(DateFormat('d MMM yyyy', 'id_ID').format(selectedDate)),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, thickness: 1, indent: 24, endIndent: 24),
+          Expanded(
+            child: historyAsyncValue.when(
+              data: (transactions) {
+                if (transactions.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.inbox_outlined, size: 80, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text(
+                          'Tidak ada transaksi pada tanggal ini.',
+                          style: TextStyle(fontSize: 18, color: Colors.black54),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return RefreshIndicator(
+                  onRefresh: () => ref.refresh(inboundHistoryProvider.future),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.only(top: 8, bottom: 80), // Padding untuk FAB
+                    itemCount: transactions.length,
+                    itemBuilder: (context, index) {
+                      final trx = transactions[index];
+                      final item = trx['items'];
+                      final date = DateTime.parse(trx['transaction_date']);
+                      final formattedDate =
+                          DateFormat('d MMMM yyyy, HH:mm', 'id_ID').format(date);
+                      final status = trx['status'] ?? 'pending';
 
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      elevation: 1,
-                      shape: RoundedRectangleBorder(
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 6),
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Colors.grey.shade200)),
+                        child: InkWell(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.grey.shade200)),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          context.go('/inbound/${trx['id']}');
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: status == 'pending' ? Colors.orange.shade100 : Colors.green.shade100,
-                                child: Icon(
-                                  status == 'pending' ? Icons.pending_actions_outlined : Icons.check_circle_outline,
-                                  color: status == 'pending' ? Colors.orange.shade800 : Colors.green.shade800,
+                          onTap: () {
+                            context.go('/inbound/${trx['id']}');
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  backgroundColor: status == 'pending' ? Colors.orange.shade100 : Colors.green.shade100,
+                                  child: Icon(
+                                    status == 'pending' ? Icons.pending_actions_outlined : Icons.check_circle_outline,
+                                    color: status == 'pending' ? Colors.orange.shade800 : Colors.green.shade800,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item != null ? item['item_name'] : 'Barang Dihapus',
+                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Kode: ${item != null ? item['item_code'] : 'N/A'}\n$formattedDate',
+                                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
                                     Text(
-                                      item != null ? item['item_name'] : 'Barang Dihapus',
-                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                      '+${trx['quantity']} ${item != null ? item['unit'] : ''}',
+                                      style: TextStyle(
+                                        color: Colors.green.shade800,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                     const SizedBox(height: 4),
-                                    Text(
-                                      'Kode: ${item != null ? item['item_code'] : 'N/A'}\n$formattedDate',
-                                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                    Chip(
+                                      label: Text(status == 'pending' ? 'Pending' : 'Selesai'),
+                                      backgroundColor: status == 'pending' ? Colors.orange.shade100 : Colors.green.shade100,
+                                      labelStyle: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: status == 'pending' ? Colors.orange.shade800 : Colors.green.shade800,
+                                      ),
                                     ),
                                   ],
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    '+${trx['quantity']} ${item != null ? item['unit'] : ''}',
-                                    style: TextStyle(
-                                      color: Colors.green.shade800,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Chip(
-                                    label: Text(status == 'pending' ? 'Pending' : 'Selesai'),
-                                    backgroundColor: status == 'pending' ? Colors.orange.shade100 : Colors.green.shade100,
-                                    labelStyle: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: status == 'pending' ? Colors.orange.shade800 : Colors.green.shade800,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, stack) => Center(child: Text('Terjadi Error: $error')),
+                      );
+                    },
+                  ),
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) =>
+                  Center(child: Text('Terjadi Error: $error')),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          context.go('/inbound/add');
+        },
+        tooltip: 'Tambah Penerimaan',
+        child: const Icon(Icons.add),
+      ),
     );
   }
 }
