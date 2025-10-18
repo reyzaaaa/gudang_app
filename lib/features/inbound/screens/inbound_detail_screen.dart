@@ -9,6 +9,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+// Provider untuk mengambil detail transaksi tunggal berdasarkan ID
 final singleTransactionProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, int>((ref, id) async {
   final response = await supabase
       .from('transactions')
@@ -121,44 +122,49 @@ class _InboundDetailViewState extends ConsumerState<_InboundDetailView> {
   }
 
   Future<void> _printBarcodes(BuildContext context, {required List<String> rackNumbers}) async {
-    final pdf = pw.Document();
     final item = _currentTransaction['items'];
     if (item == null) return;
+    
+    // Tentukan ukuran label Anda di sini (dalam milimeter)
+    const double labelWidth = 58 * PdfPageFormat.mm;
+    const double labelHeight = 40 * PdfPageFormat.mm;
+    final pageFormat = const PdfPageFormat(labelWidth, labelHeight, marginAll: 3 * PdfPageFormat.mm);
+
+    final pdf = pw.Document();
     final String itemCode = item['item_code'];
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        build: (context) {
-          final List<pw.Widget> qrCodeWidgets = [];
-          for (final rackNumber in rackNumbers) {
-            final String barcodeData = '$rackNumber$itemCode';
-            qrCodeWidgets.add(
-              pw.Container(
-                padding: const pw.EdgeInsets.all(8),
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.grey),
-                  borderRadius: pw.BorderRadius.circular(5),
-                ),
-                child: pw.Column(
-                  children: [
-                    pw.BarcodeWidget(
-                      barcode: Barcode.qrCode(),
-                      data: barcodeData,
-                      width: 80,
-                      height: 80,
-                    ),
-                    pw.SizedBox(height: 5),
-                    pw.Text(barcodeData, style: const pw.TextStyle(fontSize: 10)),
-                  ],
-                ),
+
+    // Loop dan buat SATU HALAMAN untuk SETIAP BARCODE
+    for (final rackNumber in rackNumbers) {
+      final String barcodeData = '$rackNumber$itemCode';
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: pageFormat,
+          build: (pw.Context context) {
+            return pw.Center(
+              child: pw.Column(
+                mainAxisSize: pw.MainAxisSize.min,
+                children: [
+                  pw.BarcodeWidget(
+                    barcode: Barcode.qrCode(),
+                    data: barcodeData,
+                    width: 28 * PdfPageFormat.mm, // Ukuran QR Code
+                    height: 28 * PdfPageFormat.mm,
+                  ),
+                  pw.SizedBox(height: 2 * PdfPageFormat.mm),
+                  pw.Text(barcodeData, style: const pw.TextStyle(fontSize: 8)),
+                ],
               ),
             );
-          }
-          return [pw.Wrap(children: qrCodeWidgets, spacing: 15, runSpacing: 15)];
-        },
-      ),
+          },
+        ),
+      );
+    }
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+      name: 'Barcodes_${itemCode}.pdf',
     );
-    await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
   }
 
   Future<void> _startVerification() async {
@@ -169,11 +175,11 @@ class _InboundDetailViewState extends ConsumerState<_InboundDetailView> {
     final scannedCode = await context.push<String>('/scanner');
     if (scannedCode == null) return;
     if (!expectedCodes.contains(scannedCode)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error: Barcode tidak dikenali untuk transaksi ini!'), backgroundColor: Colors.red));
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error: Barcode tidak dikenali untuk transaksi ini!'), backgroundColor: Colors.red));
       return;
     }
     if (_scannedCodes.contains(scannedCode)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Info: Barcode ini sudah pernah di-scan.'), backgroundColor: Colors.orange));
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Info: Barcode ini sudah pernah di-scan.'), backgroundColor: Colors.orange));
       return;
     }
     setState(() {
@@ -223,6 +229,7 @@ class _InboundDetailViewState extends ConsumerState<_InboundDetailView> {
     final formattedDate = DateFormat('EEEE, d MMMM yyyy, HH:mm', 'id_ID').format(date);
     final status = _currentTransaction['status'] ?? 'pending';
     final int totalQty = _currentTransaction['quantity'];
+
     return _isCheckingAllocation
         ? const Center(child: CircularProgressIndicator())
         : ListView(
