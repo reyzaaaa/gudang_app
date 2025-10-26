@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart'; // Import GoRouter untuk navigasi
+import 'package:go_router/go_router.dart';
 import 'package:gudang_app/features/outbound/providers/outbound_providers.dart';
 import 'package:gudang_app/main.dart'; // Untuk akses supabase
 import 'package:intl/intl.dart';
@@ -78,259 +78,264 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
     final historyAsyncValue = ref.watch(outboundHistoryProvider);
     final theme = Theme.of(context);
 
-    return Scaffold( // Scaffold dibutuhkan karena ada FAB
-      backgroundColor: Colors.transparent,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // --- Bagian Form Input ---
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Buat Permintaan Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 12),
-                       Autocomplete<Map<String, dynamic>>(
-                         displayStringForOption: (option) => option['item_code'],
-                         optionsBuilder: (value) async {
-                           if (value.text.isEmpty) {
-                             if (_selectedItemStock != null) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                   if (mounted) {
-                                     setState(() => _selectedItemStock = null);
-                                   }
-                                });
-                             }
-                             return const Iterable.empty();
+    // Langsung return Column, tanpa Scaffold
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // --- Bagian Form Input ---
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: Card(
+             elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Buat Permintaan Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                     Autocomplete<Map<String, dynamic>>(
+                       displayStringForOption: (option) => option['item_name'], // Tampilkan nama
+                       optionsBuilder: (value) async {
+                         if (value.text.isEmpty) {
+                           if (_selectedItemStock != null) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                 if (mounted) {
+                                   setState(() {
+                                      _selectedItemId = null;
+                                      _kodeBarangController.clear();
+                                      _namaBarangController.clear();
+                                      _unitController.clear();
+                                      _selectedItemStock = null;
+                                   });
+                                 }
+                              });
                            }
-                           final response = await supabase.from('items').select('id, item_code, item_name, unit, total_stok').ilike('item_code', '%${value.text}%');
-                           return response;
-                         },
-                         onSelected: (selection) {
-                           setState(() {
-                             _selectedItemId = selection['id'];
-                             _namaBarangController.text = selection['item_name'];
-                             _unitController.text = selection['unit'];
-                             _selectedItemStock = selection['total_stok'] ?? 0;
-                           });
-                         },
-                         fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
-                            _kodeBarangController.addListener(() { if (controller.text != _kodeBarangController.text) controller.value = _kodeBarangController.value; });
-                            controller.addListener(() { if (controller.text != _kodeBarangController.text) _kodeBarangController.value = controller.value; });
-                           return TextFormField(
-                             controller: controller,
-                             focusNode: focusNode,
-                             decoration: const InputDecoration(labelText: 'Kode Barang', isDense: true, suffixIcon: Icon(Icons.search, size: 20)),
-                             validator: (val) => _selectedItemId == null ? 'Pilih!' : null,
-                           );
-                         },
-                       ),
-                      const SizedBox(height: 8),
-                      TextFormField(controller: _namaBarangController, readOnly: true, decoration: const InputDecoration(labelText: 'Nama Barang', isDense: true, filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none)),
-                      Visibility(
-                        visible: _selectedItemStock != null,
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 8.0),
-                          child: Text(
-                            'Stok Tersedia: ${_selectedItemStock ?? 0}',
-                            style: TextStyle( color: (_selectedItemStock ?? 0) > 0 ? Colors.green.shade800 : Colors.red.shade800, fontWeight: FontWeight.bold),
-                          ),
+                           return const Iterable.empty();
+                         }
+                         // Cari berdasarkan nama
+                         final response = await supabase.from('items').select('id, item_code, item_name, unit, total_stok').ilike('item_name', '%${value.text}%');
+                         return response;
+                       },
+                       onSelected: (selection) {
+                         setState(() {
+                           _selectedItemId = selection['id'];
+                           _kodeBarangController.text = selection['item_code']; // Tetap simpan kode
+                           _namaBarangController.text = selection['item_name'];
+                           _unitController.text = selection['unit'];
+                           _selectedItemStock = selection['total_stok'] ?? 0;
+                         });
+                       },
+                       fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+                          _namaBarangController.addListener(() { if (controller.text != _namaBarangController.text) controller.value = _namaBarangController.value; });
+                          controller.addListener(() { if (controller.text != _namaBarangController.text) _namaBarangController.value = controller.value; });
+                         return TextFormField(
+                           controller: controller,
+                           focusNode: focusNode,
+                           decoration: const InputDecoration(
+                             labelText: 'Nama Barang (Cari)', // Label diubah
+                             isDense: true,
+                             suffixIcon: Icon(Icons.search, size: 20)), // Hanya ikon search
+                           validator: (val) => _selectedItemId == null ? 'Pilih!' : null,
+                         );
+                       },
+                     ),
+                    const SizedBox(height: 8),
+                     Visibility(
+                        visible: _selectedItemId != null,
+                        child: Text('Kode: ${_kodeBarangController.text}', style: TextStyle(color: Colors.grey.shade600)),
+                      ),
+                    Visibility(
+                      visible: _selectedItemStock != null,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          'Stok Tersedia: ${_selectedItemStock ?? 0}',
+                          style: TextStyle( color: (_selectedItemStock ?? 0) > 0 ? Colors.green.shade800 : Colors.red.shade800, fontWeight: FontWeight.bold),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(child: TextFormField(controller: _qtyController, decoration: const InputDecoration(labelText: 'Qty', isDense: true), keyboardType: TextInputType.number, validator: (val) {
-                             if (val == null || val.isEmpty) return 'Qty!';
-                             final reqQty = int.tryParse(val);
-                             if (reqQty == null || reqQty <= 0) return '> 0!';
-                             if (_selectedItemStock != null) {
-                               if (_selectedItemStock == 0) return 'Stok 0!';
-                               if (reqQty > _selectedItemStock!) return 'Over!';
-                             } return null;
-                          })),
-                          const SizedBox(width: 8),
-                          Expanded(child: TextFormField(controller: _unitController, readOnly: true, decoration: const InputDecoration(labelText: 'Unit', isDense: true, filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none))),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: _isSaving ? null : _submitForm,
-                        icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send),
-                        label: Text(_isSaving ? 'Membuat...' : 'Buat Permintaan'),
-                        style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: TextFormField(controller: _qtyController, decoration: const InputDecoration(labelText: 'Qty', isDense: true), keyboardType: TextInputType.number, validator: (val) {
+                           if (val == null || val.isEmpty) return 'Qty!';
+                           final reqQty = int.tryParse(val);
+                           if (reqQty == null || reqQty <= 0) return '> 0!';
+                           if (_selectedItemStock != null) {
+                             if (_selectedItemStock == 0) return 'Stok 0!';
+                             if (reqQty > _selectedItemStock!) return 'Over!';
+                           } return null;
+                        })),
+                        const SizedBox(width: 8),
+                        Expanded(child: TextFormField(controller: _unitController, readOnly: true, decoration: const InputDecoration(labelText: 'Unit', isDense: true, filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none))),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _submitForm,
+                      icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send),
+                      label: Text(_isSaving ? 'Membuat...' : 'Buat Permintaan'),
+                      style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-          // --- Bagian Histori ---
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 16, 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'HISTORI PENGELUARAN',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                ),
-                TextButton.icon(
-                  onPressed: () async {
-                    final pickedDate = await showDatePicker(
-                      context: context, // Ditambahkan
-                      initialDate: selectedDate,
-                      firstDate: DateTime(2020), // Ditambahkan
-                      lastDate: DateTime.now(),   // Ditambahkan
-                      locale: const Locale('id', 'ID'),
-                    );
-                    if (pickedDate != null) {
-                      selectedDateNotifier.state = pickedDate;
-                    }
-                  },
-                  icon: const Icon(Icons.calendar_month_outlined),
-                  label: Text(DateFormat('d MMM yyyy', 'id_ID').format(selectedDate)),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, thickness: 1, indent: 24, endIndent: 24),
-          // --- Daftar Histori ---
-          Expanded(
-            child: historyAsyncValue.when(
-              data: (transactions) {
-                if (transactions.isEmpty) {
-                  return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.outbox_outlined, size: 80, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text(
-                          'Tidak ada permintaan pada tanggal ini.',
-                          style: TextStyle(fontSize: 18, color: Colors.black54),
-                        ),
-                      ],
+        ),
+        // --- Bagian Histori ---
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 16, 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'HISTORI PENGELUARAN',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
                     ),
+              ),
+              TextButton.icon(
+                onPressed: () async {
+                  final pickedDate = await showDatePicker(
+                     context: context,
+                     initialDate: selectedDate,
+                     firstDate: DateTime(2020),
+                     lastDate: DateTime.now(),
+                     locale: const Locale('id', 'ID'),
                   );
-                }
-                return RefreshIndicator(
-                  onRefresh: () => ref.refresh(outboundHistoryProvider.future),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.only(top: 8, bottom: 80), // Padding untuk FAB
-                    itemCount: transactions.length,
-                    itemBuilder: (context, index) {
-                      final trx = transactions[index];
-                      final item = trx['items'];
-                      final date = DateTime.parse(trx['transaction_date']);
-                      final formattedDate =
-                          DateFormat('d MMMM yyyy, HH:mm', 'id_ID').format(date);
-                      final status = trx['status'] ?? 'pending';
+                  if (pickedDate != null) {
+                    selectedDateNotifier.state = pickedDate;
+                  }
+                },
+                icon: const Icon(Icons.calendar_month_outlined),
+                label: Text(DateFormat('d MMM yyyy', 'id_ID').format(selectedDate)),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1, thickness: 1, indent: 24, endIndent: 24),
+        // --- Daftar Histori ---
+        Expanded(
+          child: historyAsyncValue.when(
+            data: (transactions) {
+              if (transactions.isEmpty) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.outbox_outlined, size: 80, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        'Tidak ada permintaan pada tanggal ini.',
+                        style: TextStyle(fontSize: 18, color: Colors.black54),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return RefreshIndicator(
+                onRefresh: () => ref.refresh(outboundHistoryProvider.future),
+                child: ListView.builder(
+                  padding: const EdgeInsets.only(top: 8, bottom: 8), // Padding bawah dihapus
+                  itemCount: transactions.length,
+                  itemBuilder: (context, index) {
+                    final trx = transactions[index];
+                    final item = trx['items'];
+                    final date = DateTime.parse(trx['transaction_date']);
+                    final formattedDate =
+                        DateFormat('d MMMM yyyy, HH:mm', 'id_ID').format(date);
+                    final status = trx['status'] ?? 'pending';
 
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                        elevation: 1,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(color: Colors.grey.shade200)),
-                        child: InkWell(
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      elevation: 1,
+                      shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          onTap: () {
-                            if (status == 'pending') {
-                              GoRouter.of(context).go('/outbound/picking', extra: trx);
-                            } else {
-                              GoRouter.of(context).go('/outbound/${trx['id']}');
-                            }
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  backgroundColor: status == 'pending' ? Colors.orange.shade100 : Colors.red.shade100,
-                                  child: Icon(
-                                    status == 'pending' ? Icons.pending_actions_outlined : Icons.arrow_upward,
-                                    color: status == 'pending' ? Colors.orange.shade800 : Colors.red.shade800,
-                                  ),
+                          side: BorderSide(color: Colors.grey.shade200)),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          if (status == 'pending') {
+                            GoRouter.of(context).go('/outbound/picking', extra: trx);
+                          } else {
+                            GoRouter.of(context).go('/outbound/${trx['id']}');
+                          }
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: status == 'pending' ? Colors.orange.shade100 : Colors.red.shade100,
+                                child: Icon(
+                                  status == 'pending' ? Icons.pending_actions_outlined : Icons.arrow_upward,
+                                  color: status == 'pending' ? Colors.orange.shade800 : Colors.red.shade800,
                                 ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item != null ? item['item_name'] : 'Barang Dihapus',
-                                        style: const TextStyle(fontWeight: FontWeight.bold),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Kode: ${item != null ? item['item_code'] : 'N/A'}\n$formattedDate',
-                                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.end,
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      '-${trx['quantity']} ${item != null ? item['unit'] : ''}',
-                                      style: const TextStyle(
-                                        color: Colors.red,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
+                                      item != null ? item['item_name'] : 'Barang Dihapus',
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
                                     ),
                                     const SizedBox(height: 4),
-                                    Chip(
-                                      label: Text(status == 'pending' ? 'Pending' : 'Selesai'),
-                                      backgroundColor: status == 'pending' ? Colors.orange.shade100 : Colors.green.shade100,
-                                      labelStyle: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: status == 'pending' ? Colors.orange.shade800 : Colors.green.shade800,
-                                      ),
+                                    Text(
+                                      'Kode: ${item != null ? item['item_code'] : 'N/A'}\n$formattedDate',
+                                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                                     ),
                                   ],
                                 ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    '-${trx['quantity']} ${item != null ? item['unit'] : ''}',
+                                    style: const TextStyle(
+                                      color: Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Chip(
+                                    label: Text(status == 'pending' ? 'Pending' : 'Selesai'),
+                                    backgroundColor: status == 'pending' ? Colors.orange.shade100 : Colors.green.shade100,
+                                    labelStyle: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: status == 'pending' ? Colors.orange.shade800 : Colors.green.shade800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                      );
-                      // Fallback return
-                      // return Container();
-                    },
-                  ),
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => Center(child: Text('Terjadi Error: $error')),
-            ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, stack) => Center(child: Text('Terjadi Error: $error')),
           ),
-        ],
-      ),
-      // FAB dikembalikan ke sini
-      floatingActionButton: FloatingActionButton(
-        onPressed: _resetForm,
-        tooltip: 'Reset Form',
-        child: const Icon(Icons.refresh),
-      ),
+        ),
+      ],
     );
+    // FloatingActionButton dihapus dari sini
   }
 }
