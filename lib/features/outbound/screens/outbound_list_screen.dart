@@ -97,7 +97,14 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
                   children: [
                     Text("Buat Permintaan Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
-                     Autocomplete<Map<String, dynamic>>(
+                    // Field Tanggal (Tidak bisa diedit)
+                    TextFormField(
+                      controller: TextEditingController(text: DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(DateTime.now())),
+                      readOnly: true,
+                      decoration: const InputDecoration(labelText: 'Tanggal Permintaan', isDense: true, filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none),
+                    ),
+                    const SizedBox(height: 8),
+                    Autocomplete<Map<String, dynamic>>(
                        displayStringForOption: (option) => option['item_name'], // Tampilkan nama
                        optionsBuilder: (value) async {
                          if (value.text.isEmpty) {
@@ -144,10 +151,10 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
                        },
                      ),
                     const SizedBox(height: 8),
-                     Visibility(
-                        visible: _selectedItemId != null,
-                        child: Text('Kode: ${_kodeBarangController.text}', style: TextStyle(color: Colors.grey.shade600)),
-                      ),
+                    Visibility(
+                      visible: _selectedItemId != null,
+                      child: Text('Kode: ${_kodeBarangController.text}', style: TextStyle(color: Colors.grey.shade600)),
+                    ),
                     Visibility(
                       visible: _selectedItemStock != null,
                       child: Padding(
@@ -336,6 +343,6 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
         ),
       ],
     );
-    // FloatingActionButton dihapus dari sini
+    // FloatingActionButton dihapus
   }
 }
