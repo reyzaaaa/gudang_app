@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gudang_app/features/auth/providers/auth_providers.dart'; // Import provider role
 import 'package:gudang_app/main.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -8,9 +9,9 @@ final masterRacksProvider = FutureProvider.autoDispose<List<Map<String, dynamic>
   final data = await supabase
       .from('racks')
       .select('*, items(item_code)')
-      .order('rack_number', ascending: true); // Order sementara
+      .order('rack_number', ascending: true);
 
-  // Lakukan pengurutan alami di sini
+  // Lakukan pengurutan alami
   data.sort((a, b) {
      final regex = RegExp(r'([A-Za-z]+)([0-9]+)');
      final matchA = regex.firstMatch(a['rack_number'] ?? '');
@@ -72,59 +73,120 @@ class _RacksTabState extends ConsumerState<RacksTab> {
     }
   }
 
+  // Fungsi Hapus Rak
+  Future<void> _deleteRack(int rackId, String rackNumber, bool isOccupied) async {
+     if (isOccupied) {
+       await showDialog(
+         context: context,
+         builder: (context) => AlertDialog(
+           title: const Text('Peringatan'),
+           content: Text('Rak "$rackNumber" sedang terisi. Mengosongkan rak mungkin diperlukan sebelum menghapus. Tetap hapus?'),
+           actions: [
+             TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Batal')),
+             TextButton(
+               onPressed: () async {
+                 Navigator.of(context).pop();
+                 await _confirmAndDeleteRack(rackId, rackNumber);
+               },
+               style: TextButton.styleFrom(foregroundColor: Colors.red),
+               child: const Text('Tetap Hapus'),
+             ),
+           ],
+         ),
+       );
+     } else {
+        await _confirmAndDeleteRack(rackId, rackNumber);
+     }
+  }
+
+  Future<void> _confirmAndDeleteRack(int rackId, String rackNumber) async {
+     final confirm = await showDialog<bool>(
+       context: context,
+       builder: (context) => AlertDialog(
+         title: const Text('Konfirmasi Hapus'),
+         content: Text('Anda yakin ingin menghapus Rak "$rackNumber"?'),
+         actions: [
+           TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Batal')),
+           TextButton(
+             onPressed: () => Navigator.of(context).pop(true),
+             style: TextButton.styleFrom(foregroundColor: Colors.red),
+             child: const Text('Hapus'),
+           ),
+         ],
+       ),
+     );
+
+     if (confirm == true) {
+       try {
+         await supabase.from('racks').delete().eq('id', rackId);
+         ref.invalidate(masterRacksProvider);
+         if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Rak "$rackNumber" berhasil dihapus.'), backgroundColor: Colors.green));
+         }
+       } catch (e) {
+          if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menghapus rak: $e'), backgroundColor: Colors.red));
+          }
+       }
+     }
+  }
+
   @override
   Widget build(BuildContext context) {
     final racksAsyncValue = ref.watch(masterRacksProvider);
     final theme = Theme.of(context);
+    final bool isStaff = ref.watch(isStaffProvider); // Cek peran
 
-    // Langsung return Column, tanpa Scaffold
     return Column(
       children: [
-        // --- Form Input Rak Baru ---
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Form(
-                key: _addRackFormKey,
-                child: Column(
-                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                     Text("Tambah Rak Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                     const SizedBox(height: 12),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start, // Agar sejajar jika error muncul
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _rackNumberController,
-                            decoration: const InputDecoration(labelText: 'Nomor Rak (Contoh: A11)', isDense: true),
-                            textCapitalization: TextCapitalization.characters,
-                            validator: (val) => (val == null || val.isEmpty) ? 'Wajib diisi' : null,
+        // --- Form Input Rak Baru (Hanya Admin) ---
+        Visibility(
+          visible: !isStaff,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _addRackFormKey,
+                  child: Column(
+                     crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                       Text("Tambah Rak Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                       const SizedBox(height: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _rackNumberController,
+                              decoration: const InputDecoration(labelText: 'Nomor Rak (Contoh: A11)', isDense: true),
+                              textCapitalization: TextCapitalization.characters,
+                              validator: (val) => (val == null || val.isEmpty) ? 'Wajib diisi' : null,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        ElevatedButton.icon(
-                          onPressed: _isSavingRack ? null : _saveNewRack,
-                          icon: _isSavingRack ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add_circle_outline, size: 18),
-                          label: Text(_isSavingRack ? 'Menyimpan...' : 'Tambah Rak'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          const SizedBox(width: 16),
+                          ElevatedButton.icon(
+                            onPressed: _isSavingRack ? null : _saveNewRack,
+                            icon: _isSavingRack ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add_circle_outline, size: 18),
+                            label: Text(_isSavingRack ? 'Menyimpan...' : 'Tambah Rak'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
          Padding(
-           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10.0),
+           padding: EdgeInsets.fromLTRB(24.0, isStaff ? 16.0 : 16.0, 24.0, 10.0),
            child: Text(
              'DAFTAR RAK PENYIMPANAN',
              style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -166,14 +228,25 @@ class _RacksTabState extends ConsumerState<RacksTab> {
                         subtitle: Text(
                           isKosong ? 'Rak ini kosong' : 'Terisi: ${item?['item_code'] ?? 'N/A'}'
                         ),
-                        trailing: Chip(
-                          label: Text(isKosong ? 'Kosong' : 'Terisi'),
-                          backgroundColor: isKosong ? Colors.grey.shade200 : Colors.green.shade100,
-                           labelStyle: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: isKosong ? Colors.grey.shade700 : Colors.green.shade800,
-                          ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Chip(
+                              label: Text(isKosong ? 'Kosong' : 'Terisi'),
+                              backgroundColor: isKosong ? Colors.grey.shade200 : Colors.green.shade100,
+                              labelStyle: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isKosong ? Colors.grey.shade700 : Colors.green.shade800,
+                              ),
+                            ),
+                            if (!isStaff) // Tampilkan tombol hapus jika bukan staff
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                                tooltip: 'Hapus Rak',
+                                onPressed: () => _deleteRack(rack['id'], rack['rack_number'], !isKosong),
+                              ),
+                          ],
                         ),
                       ),
                     );

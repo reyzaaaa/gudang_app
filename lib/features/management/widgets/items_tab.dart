@@ -4,6 +4,7 @@ import 'package:excel/excel.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gudang_app/features/auth/providers/auth_providers.dart'; // Import provider role
 import 'package:gudang_app/main.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -27,6 +28,7 @@ class ItemsTab extends ConsumerStatefulWidget {
 }
 
 class _ItemsTabState extends ConsumerState<ItemsTab> {
+  // State Form Input Baru
   final _addItemFormKey = GlobalKey<FormState>();
   final _newCodeController = TextEditingController();
   final _newNameController = TextEditingController();
@@ -34,6 +36,7 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
   String? _newUnit;
   bool _isSavingItem = false;
 
+  // State Pencarian & Ekspor
   final _searchController = TextEditingController();
   Timer? _debounce;
   bool _isExporting = false;
@@ -52,7 +55,6 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
      if (_isExporting) return;
      setState(() => _isExporting = true);
 
-     // PERBAIKAN: Cek mounted sebelum SnackBar awal
      if (!mounted) return;
      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Membuat file Excel...'), backgroundColor: Colors.blue));
 
@@ -78,19 +80,16 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
        if (fileBytes != null) {
          final blob = html.Blob([fileBytes], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
          final url = html.Url.createObjectUrlFromBlob(blob);
-         // PERBAIKAN: Hapus variabel 'anchor'
          html.AnchorElement(href: url)
            ..setAttribute("download", fileName)
            ..click();
          html.Url.revokeObjectUrl(url);
-         // Tambahkan pesan sukses untuk web jika perlu (opsional)
           if (mounted) {
              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Download dimulai...'), backgroundColor: Colors.green));
           }
        }
      } else {
        final status = await Permission.storage.request();
-       // PERBAIKAN: Cek mounted setelah await
        if (!mounted) return;
 
        if (status.isGranted) {
@@ -101,20 +100,16 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
 
            if (fileBytes != null) {
              File(path).writeAsBytesSync(fileBytes);
-             // PERBAIKAN: Cek mounted sebelum SnackBar sukses
              if (!mounted) return;
              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Berhasil disimpan di folder Downloads: $fileName'), duration: const Duration(seconds: 5), backgroundColor: Colors.green));
            }
          } catch (e) {
-           // PERBAIKAN: Cek mounted sebelum SnackBar error
            if (!mounted) return;
            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menyimpan file: $e'), backgroundColor: Colors.red));
          }
        } else {
-         // PERBAIKAN: Cek mounted sebelum SnackBar izin
          if (!mounted) return;
          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Izin penyimpanan diperlukan.'), backgroundColor: Colors.orange));
-         // Pertimbangkan menambahkan openAppSettings jika ditolak permanen
          if (status.isPermanentlyDenied) {
             openAppSettings();
          }
@@ -158,61 +153,110 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
     }
   }
 
+  // Fungsi Hapus Item
+  Future<void> _deleteItem(int itemId, String itemName) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Konfirmasi Hapus'),
+        content: Text('Anda yakin ingin menghapus bahan baku "$itemName"? Stok terkait di rak juga akan terhapus.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Batal')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await supabase.from('items').delete().eq('id', itemId);
+        ref.invalidate(masterItemsProvider);
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('"$itemName" berhasil dihapus.'), backgroundColor: Colors.green));
+        }
+      } catch (e) {
+         if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal menghapus: $e'), backgroundColor: Colors.red));
+         }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final itemsAsyncValue = ref.watch(masterItemsProvider);
     final theme = Theme.of(context);
+    final bool isStaff = ref.watch(isStaffProvider); // Cek peran
 
     return Column(
       children: [
-        // --- Form Input Item Baru ---
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Form(
-                key: _addItemFormKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Tambah Bahan Baku Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _newCodeController,
-                      decoration: const InputDecoration(labelText: 'Kode Barang Baru', isDense: true),
-                      textCapitalization: TextCapitalization.characters,
-                      validator: (value) => (value == null || value.isEmpty) ? 'Wajib diisi' : null,
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _newNameController,
-                      decoration: const InputDecoration(labelText: 'Nama Barang', isDense: true),
-                      validator: (value) => (value == null || value.isEmpty) ? 'Wajib diisi' : null,
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      value: _newUnit,
-                      decoration: const InputDecoration(labelText: 'Unit', isDense: true),
-                      items: _units.map((String unit) => DropdownMenuItem<String>(value: unit, child: Text(unit))).toList(),
-                      onChanged: (value) => setState(() => _newUnit = value),
-                      validator: (value) => value == null ? 'Pilih unit' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _isSavingItem ? null : _saveNewItem,
-                      icon: _isSavingItem ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add_circle_outline),
-                      label: Text(_isSavingItem ? 'Menyimpan...' : 'Tambah Bahan Baku'),
-                      style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
-                    )
-                  ],
+        // --- Form Input Item Baru (Hanya Admin) ---
+        Visibility(
+          visible: !isStaff,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _addItemFormKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Tambah Bahan Baku Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _newCodeController,
+                        decoration: const InputDecoration(labelText: 'Kode Barang Baru', isDense: true),
+                        textCapitalization: TextCapitalization.characters,
+                        validator: (value) => (value == null || value.isEmpty) ? 'Wajib diisi' : null,
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _newNameController,
+                        decoration: const InputDecoration(labelText: 'Nama Barang', isDense: true),
+                        validator: (value) => (value == null || value.isEmpty) ? 'Wajib diisi' : null,
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: _newUnit,
+                        decoration: const InputDecoration(labelText: 'Unit', isDense: true),
+                        items: _units.map((String unit) => DropdownMenuItem<String>(value: unit, child: Text(unit))).toList(),
+                        onChanged: (value) => setState(() => _newUnit = value),
+                        validator: (value) => value == null ? 'Pilih unit' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _isSavingItem ? null : _saveNewItem,
+                        icon: _isSavingItem ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add_circle_outline),
+                        label: Text(_isSavingItem ? 'Menyimpan...' : 'Tambah Bahan Baku'),
+                        style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
+                      )
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
+
+        // Judul Daftar
+        Padding(
+           padding: EdgeInsets.fromLTRB(24.0, isStaff ? 16.0 : 16.0, 24.0, 8.0),
+           child: Text(
+             'DAFTAR BAHAN BAKU',
+             style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                   fontWeight: FontWeight.bold,
+                   color: Colors.black87,
+                 ),
+           ),
+         ),
 
         // --- Baris Pencarian & Ekspor ---
         Padding(
@@ -247,9 +291,12 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
                  loading: () => const SizedBox.shrink(),
                  error: (e, s) => IconButton(icon: const Icon(Icons.error_outline), tooltip: 'Gagal Memuat', onPressed: (){}),
               ),
+              // Tombol Tambah dihapus dari sini
             ],
           ),
         ),
+        const Divider(height: 1, thickness: 1, indent: 24, endIndent: 24),
+
         // --- Daftar Barang ---
         Expanded(
           child: itemsAsyncValue.when(
@@ -262,7 +309,7 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
                    ref.invalidate(masterItemsProvider);
                 },
                 child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
                   itemCount: items.length,
                   itemBuilder: (context, index) {
                     final item = items[index];
@@ -278,7 +325,21 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(item['item_name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                             Row(
+                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                               crossAxisAlignment: CrossAxisAlignment.start,
+                               children: [
+                                 Expanded(child: Text(item['item_name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+                                 if (!isStaff) // Tampilkan tombol hapus jika bukan staff
+                                   InkWell(
+                                     onTap: () => _deleteItem(item['id'], item['item_name']),
+                                     child: const Padding(
+                                       padding: EdgeInsets.only(left: 8.0),
+                                       child: Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                                     ),
+                                   ),
+                               ],
+                             ),
                             const SizedBox(height: 4),
                             Text('Kode: ${item['item_code']}', style: TextStyle(color: Colors.grey.shade700)),
                             const Divider(height: 16),
