@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gudang_app/features/auth/providers/auth_providers.dart'; // Import provider role
 import 'package:gudang_app/features/outbound/providers/outbound_providers.dart';
 import 'package:gudang_app/main.dart'; // Untuk akses supabase
 import 'package:intl/intl.dart';
@@ -14,9 +15,9 @@ class OutboundListScreen extends ConsumerStatefulWidget {
 
 class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _tanggalController = TextEditingController(); // Controller untuk tanggal
+  final _tanggalController = TextEditingController();
   final _kodeBarangController = TextEditingController();
-  final _namaBarangController = TextEditingController(); // Controller Autocomplete
+  final _namaBarangController = TextEditingController();
   final _unitController = TextEditingController();
   final _qtyController = TextEditingController();
   int? _selectedItemId;
@@ -55,7 +56,6 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
     }
   }
 
-  // Fungsi pilih tanggal ditambahkan
   Future<void> _selectDate() async {
     DateTime? picked = await showDatePicker(
         context: context,
@@ -105,123 +105,131 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
     final selectedDateNotifier = ref.read(selectedDateOutboundProvider.notifier);
     final historyAsyncValue = ref.watch(outboundHistoryProvider);
     final theme = Theme.of(context);
+    final bool isStaff = ref.watch(isStaffProvider); // Cek peran user
 
     // Langsung return Column, tanpa Scaffold dan FAB
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // --- Bagian Form Input ---
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: Card(
-             elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Buat Permintaan Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    // Field Tanggal (Sekarang bisa diedit)
-                    TextFormField(
-                      controller: _tanggalController,
-                      readOnly: true,
-                      decoration: InputDecoration(
-                        labelText: 'Tanggal Permintaan',
-                        isDense: true,
-                        suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 20), onPressed: _selectDate, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                     Autocomplete<Map<String, dynamic>>(
-                       displayStringForOption: (option) => option['item_name'], // Tampilkan nama
-                       optionsBuilder: (value) async {
-                         if (value.text.isEmpty) {
-                           if (_selectedItemStock != null) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                 if (mounted) {
-                                   setState(() {
-                                      _selectedItemId = null;
-                                      _kodeBarangController.clear();
-                                      _namaBarangController.clear();
-                                      _unitController.clear();
-                                      _selectedItemStock = null;
-                                   });
-                                 }
-                              });
-                           }
-                           return const Iterable.empty();
-                         }
-                         // Cari berdasarkan nama
-                         final response = await supabase.from('items').select('id, item_code, item_name, unit, total_stok').ilike('item_name', '%${value.text}%');
-                         return response;
-                       },
-                       onSelected: (selection) {
-                         setState(() {
-                           _selectedItemId = selection['id'];
-                           _kodeBarangController.text = selection['item_code']; // Tetap simpan kode
-                           _namaBarangController.text = selection['item_name'];
-                           _unitController.text = selection['unit'];
-                           _selectedItemStock = selection['total_stok'] ?? 0;
-                         });
-                       },
-                       fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
-                          _namaBarangController.addListener(() { if (controller.text != _namaBarangController.text) controller.value = _namaBarangController.value; });
-                          controller.addListener(() { if (controller.text != _namaBarangController.text) _namaBarangController.value = controller.value; });
-                         return TextFormField(
-                           controller: controller,
-                           focusNode: focusNode,
-                           decoration: const InputDecoration(
-                             labelText: 'Nama Barang (Cari)', // Label diubah
-                             isDense: true,
-                             suffixIcon: Icon(Icons.search, size: 20)), // Hanya ikon search
-                           validator: (val) => _selectedItemId == null ? 'Pilih!' : null,
-                         );
-                       },
-                     ),
-                    const SizedBox(height: 8),
-                    Visibility(
-                      visible: _selectedItemId != null,
-                      child: Text('Kode: ${_kodeBarangController.text}', style: TextStyle(color: Colors.grey.shade600)),
-                    ),
-                    Visibility(
-                      visible: _selectedItemStock != null,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Text(
-                          'Stok Tersedia: ${_selectedItemStock ?? 0}',
-                          style: TextStyle( color: (_selectedItemStock ?? 0) > 0 ? Colors.green.shade800 : Colors.red.shade800, fontWeight: FontWeight.bold),
+        // --- Bagian Form Input (Conditional Visibility) ---
+        Visibility(
+          visible: !isStaff,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Card(
+               elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Buat Permintaan Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      // Field Tanggal
+                      TextFormField(
+                        controller: _tanggalController,
+                        readOnly: true,
+                        decoration: InputDecoration(
+                          labelText: 'Tanggal Permintaan',
+                          isDense: true,
+                          suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 20), onPressed: _selectDate, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: TextFormField(controller: _qtyController, decoration: const InputDecoration(labelText: 'Qty', isDense: true), keyboardType: TextInputType.number, validator: (val) {
-                           if (val == null || val.isEmpty) return 'Qty!';
-                           final reqQty = int.tryParse(val);
-                           if (reqQty == null || reqQty <= 0) return '> 0!';
-                           if (_selectedItemStock != null) {
-                             if (_selectedItemStock == 0) return 'Stok 0!';
-                             if (reqQty > _selectedItemStock!) return 'Over!';
-                           } return null;
-                        })),
-                        const SizedBox(width: 8),
-                        Expanded(child: TextFormField(controller: _unitController, readOnly: true, decoration: const InputDecoration(labelText: 'Unit', isDense: true, filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none))),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _isSaving ? null : _submitForm,
-                      icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send),
-                      label: Text(_isSaving ? 'Membuat...' : 'Buat Permintaan'),
-                      style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      // Autocomplete Nama Barang
+                       Autocomplete<Map<String, dynamic>>(
+                         displayStringForOption: (option) => option['item_name'],
+                         optionsBuilder: (value) async {
+                           if (value.text.isEmpty) {
+                             if (_selectedItemStock != null) {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                   if (mounted) {
+                                     setState(() {
+                                        _selectedItemId = null;
+                                        _kodeBarangController.clear();
+                                        _namaBarangController.clear();
+                                        _unitController.clear();
+                                        _selectedItemStock = null;
+                                     });
+                                   }
+                                });
+                             }
+                             return const Iterable.empty();
+                           }
+                           final response = await supabase.from('items').select('id, item_code, item_name, unit, total_stok').ilike('item_name', '%${value.text}%');
+                           return response;
+                         },
+                         onSelected: (selection) {
+                           setState(() {
+                             _selectedItemId = selection['id'];
+                             _kodeBarangController.text = selection['item_code'];
+                             _namaBarangController.text = selection['item_name'];
+                             _unitController.text = selection['unit'];
+                             _selectedItemStock = selection['total_stok'] ?? 0;
+                           });
+                         },
+                         fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+                            _namaBarangController.addListener(() { if (controller.text != _namaBarangController.text) controller.value = _namaBarangController.value; });
+                            controller.addListener(() { if (controller.text != _namaBarangController.text) _namaBarangController.value = controller.value; });
+                           return TextFormField(
+                             controller: controller,
+                             focusNode: focusNode,
+                             decoration: const InputDecoration(
+                               labelText: 'Nama Barang (Cari)',
+                               isDense: true,
+                               suffixIcon: Icon(Icons.search, size: 20)),
+                             validator: (val) => _selectedItemId == null ? 'Pilih!' : null,
+                           );
+                         },
+                       ),
+                      const SizedBox(height: 8),
+                      // Tampilkan Kode Barang
+                      Visibility(
+                        visible: _selectedItemId != null,
+                        child: Text('Kode: ${_kodeBarangController.text}', style: TextStyle(color: Colors.grey.shade600)),
+                      ),
+                      // Tampilkan Stok Tersedia
+                      Visibility(
+                        visible: _selectedItemStock != null,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            'Stok Tersedia: ${_selectedItemStock ?? 0}',
+                            style: TextStyle( color: (_selectedItemStock ?? 0) > 0 ? Colors.green.shade800 : Colors.red.shade800, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Baris Qty & Unit
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: TextFormField(controller: _qtyController, decoration: const InputDecoration(labelText: 'Qty', isDense: true), keyboardType: TextInputType.number, validator: (val) {
+                             if (val == null || val.isEmpty) return 'Qty!';
+                             final reqQty = int.tryParse(val);
+                             if (reqQty == null || reqQty <= 0) return '> 0!';
+                             if (_selectedItemStock != null) {
+                               if (_selectedItemStock == 0) return 'Stok 0!';
+                               if (reqQty > _selectedItemStock!) return 'Over!';
+                             } return null;
+                          })),
+                          const SizedBox(width: 8),
+                          Expanded(child: TextFormField(controller: _unitController, readOnly: true, decoration: const InputDecoration(labelText: 'Unit', isDense: true, filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none))),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Tombol Buat Permintaan
+                      ElevatedButton.icon(
+                        onPressed: _isSaving ? null : _submitForm,
+                        icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send),
+                        label: Text(_isSaving ? 'Membuat...' : 'Buat Permintaan'),
+                        style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -229,7 +237,7 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
         ),
         // --- Bagian Histori ---
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 16, 10),
+          padding: EdgeInsets.fromLTRB(24, isStaff ? 16 : 16, 16, 10), // Adjust padding
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -282,7 +290,7 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
               return RefreshIndicator(
                 onRefresh: () => ref.refresh(outboundHistoryProvider.future),
                 child: ListView.builder(
-                  padding: const EdgeInsets.only(top: 8, bottom: 8), // Padding bawah dihapus
+                  padding: const EdgeInsets.only(top: 8, bottom: 8),
                   itemCount: transactions.length,
                   itemBuilder: (context, index) {
                     final trx = transactions[index];
@@ -375,6 +383,5 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
         ),
       ],
     );
-    // FloatingActionButton dihapus
   }
 }

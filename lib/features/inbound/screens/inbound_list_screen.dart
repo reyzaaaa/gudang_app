@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gudang_app/features/auth/providers/auth_providers.dart'; // Import provider role
 import 'package:gudang_app/features/inbound/providers/inbound_providers.dart';
 import 'package:gudang_app/main.dart'; // Untuk akses supabase
 import 'package:intl/intl.dart';
@@ -15,8 +16,8 @@ class InboundListScreen extends ConsumerStatefulWidget {
 class _InboundListScreenState extends ConsumerState<InboundListScreen> {
   final _formKey = GlobalKey<FormState>();
   final _tanggalController = TextEditingController();
-  final _kodeBarangController = TextEditingController(); // Tetap dipakai internal
-  final _namaBarangController = TextEditingController(); // Controller utk Autocomplete
+  final _kodeBarangController = TextEditingController();
+  final _namaBarangController = TextEditingController();
   final _qtyController = TextEditingController();
   String? _selectedUnit;
   int? _selectedItemId;
@@ -114,120 +115,125 @@ class _InboundListScreenState extends ConsumerState<InboundListScreen> {
     final selectedDateNotifier = ref.read(selectedDateProvider.notifier);
     final historyAsyncValue = ref.watch(inboundHistoryProvider);
     final theme = Theme.of(context);
+    // Ambil status peran pengguna
+    final bool isStaff = ref.watch(isStaffProvider);
 
-    // Langsung return Column, tanpa Scaffold
+    // Langsung return Column, tanpa Scaffold dan FAB
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // --- Bagian Form Input ---
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Input Penerimaan Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                            controller: _tanggalController,
-                            decoration: InputDecoration(
-                              labelText: 'Tanggal',
-                              suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 20), onPressed: _selectDate, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-                              isDense: true,
-                            ), readOnly: true,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 3,
-                          child: Autocomplete<Map<String, dynamic>>(
-                               displayStringForOption: (option) => option['item_name'], // Tampilkan nama
-                               optionsBuilder: (value) async {
-                                 if (value.text.isEmpty) {
-                                   if (_selectedItemId != null) {
-                                     WidgetsBinding.instance.addPostFrameCallback((_) {
-                                       if (mounted) {
-                                         setState(() {
-                                           _selectedItemId = null;
-                                           _kodeBarangController.clear();
-                                           _namaBarangController.clear();
-                                           _selectedUnit = null;
-                                         });
-                                       }
-                                     });
-                                   }
-                                   return const Iterable.empty();
-                                 }
-                                 // Cari berdasarkan nama
-                                 final response = await supabase.from('items').select().ilike('item_name', '%${value.text}%');
-                                 return response;
-                               },
-                               onSelected: (selection) {
-                                  final String unitFromDb = selection['unit'] ?? '';
-                                  String normalizedUnit = '';
-                                  if (unitFromDb.isNotEmpty) {
-                                    normalizedUnit = unitFromDb[0].toUpperCase() + unitFromDb.substring(1).toLowerCase();
-                                  }
-                                  final bool unitExists = _units.contains(normalizedUnit);
-
-                                  setState(() {
-                                    _selectedItemId = selection['id'];
-                                    _kodeBarangController.text = selection['item_code']; // Tetap simpan kodenya
-                                    _namaBarangController.text = selection['item_name'];
-                                    _selectedUnit = unitExists ? normalizedUnit : null;
-                                  });
-                               },
-                               fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                                 _namaBarangController.addListener(() { if (controller.text != _namaBarangController.text) controller.value = _namaBarangController.value; });
-                                 controller.addListener(() { if (controller.text != _namaBarangController.text) _namaBarangController.value = controller.value; });
-                                 return TextFormField(
-                                   controller: controller,
-                                   focusNode: focusNode,
-                                   decoration: const InputDecoration(
-                                     labelText: 'Nama Barang (Cari)',
-                                     isDense: true,
-                                     suffixIcon: Icon(Icons.search, size: 20), // Hanya ikon search
-                                   ),
-                                   validator: (v) => _selectedItemId == null ? 'Pilih!' : null,
-                                 );
-                               },
+        // --- Bagian Form Input (Conditional Visibility) ---
+        Visibility(
+          visible: !isStaff, // Tampilkan hanya jika BUKAN staff
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Input Penerimaan Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextFormField(
+                              controller: _tanggalController,
+                              decoration: InputDecoration(
+                                labelText: 'Tanggal',
+                                suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 20), onPressed: _selectDate, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+                                isDense: true,
+                              ), readOnly: true,
                             ),
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Visibility(
-                      visible: _selectedItemId != null,
-                      child: Text('Kode: ${_kodeBarangController.text}', style: TextStyle(color: Colors.grey.shade600)),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: TextFormField(controller: _qtyController, decoration: const InputDecoration(labelText: 'Qty', isDense: true), keyboardType: TextInputType.number, validator: (v) => (v == null || v.isEmpty || int.tryParse(v) == null || int.parse(v) <= 0) ? 'Qty!' : null)),
-                        const SizedBox(width: 8),
-                        Expanded(child: DropdownButtonFormField<String>(value: _selectedUnit, items: _units.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(), onChanged: (v) => setState(() => _selectedUnit = v), decoration: const InputDecoration(labelText: 'Unit', isDense: true), validator: (v) => v == null ? 'Pilih!' : null)),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _isSaving ? null : _submitForm,
-                      icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save),
-                      label: Text(_isSaving ? 'Menyimpan...' : 'Simpan Transaksi'),
-                       style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
-                    ),
-                  ],
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 3,
+                            child: Autocomplete<Map<String, dynamic>>(
+                                 displayStringForOption: (option) => option['item_name'], // Tampilkan nama
+                                 optionsBuilder: (value) async {
+                                   if (value.text.isEmpty) {
+                                     if (_selectedItemId != null) {
+                                       WidgetsBinding.instance.addPostFrameCallback((_) {
+                                         if (mounted) {
+                                           setState(() {
+                                             _selectedItemId = null;
+                                             _kodeBarangController.clear();
+                                             _namaBarangController.clear();
+                                             _selectedUnit = null;
+                                           });
+                                         }
+                                       });
+                                     }
+                                     return const Iterable.empty();
+                                   }
+                                   // Cari berdasarkan nama
+                                   final response = await supabase.from('items').select().ilike('item_name', '%${value.text}%');
+                                   return response;
+                                 },
+                                 onSelected: (selection) {
+                                    final String unitFromDb = selection['unit'] ?? '';
+                                    String normalizedUnit = '';
+                                    if (unitFromDb.isNotEmpty) {
+                                      normalizedUnit = unitFromDb[0].toUpperCase() + unitFromDb.substring(1).toLowerCase();
+                                    }
+                                    final bool unitExists = _units.contains(normalizedUnit);
+
+                                    setState(() {
+                                      _selectedItemId = selection['id'];
+                                      _kodeBarangController.text = selection['item_code']; // Tetap simpan kodenya
+                                      _namaBarangController.text = selection['item_name'];
+                                      _selectedUnit = unitExists ? normalizedUnit : null;
+                                    });
+                                 },
+                                 fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                                   _namaBarangController.addListener(() { if (controller.text != _namaBarangController.text) controller.value = _namaBarangController.value; });
+                                   controller.addListener(() { if (controller.text != _namaBarangController.text) _namaBarangController.value = controller.value; });
+                                   return TextFormField(
+                                     controller: controller,
+                                     focusNode: focusNode,
+                                     decoration: const InputDecoration(
+                                       labelText: 'Nama Barang (Cari)',
+                                       isDense: true,
+                                       suffixIcon: Icon(Icons.search, size: 20), // Hanya ikon search
+                                     ),
+                                     validator: (v) => _selectedItemId == null ? 'Pilih!' : null,
+                                   );
+                                 },
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Visibility(
+                        visible: _selectedItemId != null,
+                        child: Text('Kode: ${_kodeBarangController.text}', style: TextStyle(color: Colors.grey.shade600)),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: TextFormField(controller: _qtyController, decoration: const InputDecoration(labelText: 'Qty', isDense: true), keyboardType: TextInputType.number, validator: (v) => (v == null || v.isEmpty || int.tryParse(v) == null || int.parse(v) <= 0) ? 'Qty!' : null)),
+                          const SizedBox(width: 8),
+                          Expanded(child: DropdownButtonFormField<String>(value: _selectedUnit, items: _units.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(), onChanged: (v) => setState(() => _selectedUnit = v), decoration: const InputDecoration(labelText: 'Unit', isDense: true), validator: (v) => v == null ? 'Pilih!' : null)),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _isSaving ? null : _submitForm,
+                        icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save),
+                        label: Text(_isSaving ? 'Menyimpan...' : 'Simpan Transaksi'),
+                         style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -235,7 +241,7 @@ class _InboundListScreenState extends ConsumerState<InboundListScreen> {
         ),
         // --- Bagian Histori ---
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 16, 10),
+          padding: EdgeInsets.fromLTRB(24, isStaff ? 16 : 16, 16, 10), // Adjust top padding if staff
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -289,7 +295,7 @@ class _InboundListScreenState extends ConsumerState<InboundListScreen> {
               return RefreshIndicator(
                 onRefresh: () => ref.refresh(inboundHistoryProvider.future),
                 child: ListView.builder(
-                  padding: const EdgeInsets.only(top: 8, bottom: 8), // Padding bawah dihapus
+                  padding: const EdgeInsets.only(top: 8, bottom: 8),
                   itemCount: transactions.length,
                   itemBuilder: (context, index) {
                     final trx = transactions[index];
@@ -378,6 +384,5 @@ class _InboundListScreenState extends ConsumerState<InboundListScreen> {
         ),
       ],
     );
-    // FloatingActionButton dihapus
   }
 }
