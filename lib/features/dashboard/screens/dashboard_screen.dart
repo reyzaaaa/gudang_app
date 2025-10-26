@@ -64,7 +64,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           : (location == '/outbound' ? () => context.go('/outbound/add') : null);
 
         // Definisikan warna biru muda di sini
-        final mobileNavbarColor = const Color(0xFFD6E4FF);
+        const mobileNavbarColor = Color(0xFFD6E4FF);
 
         return Scaffold(
           appBar: AppBar(

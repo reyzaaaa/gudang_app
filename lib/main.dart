@@ -6,17 +6,16 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:gudang_app/features/auth/screens/login_screen.dart';
 import 'package:gudang_app/features/dashboard/screens/dashboard_screen.dart';
 import 'package:gudang_app/features/global/screens/scanner_screen.dart';
-import 'package:gudang_app/features/inbound/screens/add_inbound_screen.dart';
 import 'package:gudang_app/features/inbound/screens/inbound_detail_screen.dart';
 import 'package:gudang_app/features/inbound/screens/inbound_list_screen.dart';
 import 'package:gudang_app/features/management/screens/master_data_screen.dart';
-import 'package:gudang_app/features/outbound/screens/add_outbound_screen.dart';
 import 'package:gudang_app/features/outbound/screens/outbound_detail_screen.dart';
 import 'package:gudang_app/features/outbound/screens/outbound_list_screen.dart';
 import 'package:gudang_app/features/outbound/screens/picking_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+// --- Kredensial Supabase (Diambil dari Environment Variables saat Build) ---
 const String supabaseUrl = String.fromEnvironment('SUPABASE_URL');
 const String supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
@@ -30,8 +29,10 @@ void main() async {
   runApp(const ProviderScope(child: MyApp()));
 }
 
+// --- Instance Supabase Client ---
 final supabase = Supabase.instance.client;
 
+// --- Aplikasi Utama ---
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -42,17 +43,19 @@ class MyApp extends StatelessWidget {
     return MaterialApp.router(
       title: 'Manajemen Gudang',
       debugShowCheckedModeBanner: false,
+      // --- Tema Aplikasi ---
       theme: ThemeData(
         useMaterial3: true,
-        // PERUBAHAN: Skema warna diubah menjadi biru muda
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFADC8FF), // Warna biru muda dari gambar
+          seedColor: const Color(0xFFADC8FF), // Biru Muda
           brightness: Brightness.light,
-          primary: const Color(0xFF005AC1),   // Biru yang lebih kuat untuk teks & ikon aktif
+          primary: const Color(0xFF005AC1),   // Biru Aktif
         ),
         textTheme: GoogleFonts.interTextTheme(baseTextTheme),
       ),
+      // --- Konfigurasi Navigasi ---
       routerConfig: _router,
+      // --- Konfigurasi Lokalisasi ---
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -67,6 +70,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// --- Placeholder untuk Halaman Master Data ---
 class DataBahanBakuScreen extends StatelessWidget {
   const DataBahanBakuScreen({super.key});
   @override
@@ -75,61 +79,56 @@ class DataBahanBakuScreen extends StatelessWidget {
   }
 }
 
+// --- Konfigurasi GoRouter ---
 final GoRouter _router = GoRouter(
-  initialLocation: '/inbound',
+  initialLocation: '/inbound', // Halaman awal setelah login
+  // --- Logika Redirect ---
   redirect: (context, state) {
     final session = supabase.auth.currentSession;
     final isLoggingIn = state.matchedLocation == '/login';
-    if (session == null) {
-      return isLoggingIn ? null : '/login';
+    if (session == null) { // Jika belum login
+      return isLoggingIn ? null : '/login'; // Arahkan ke login jika belum di sana
     }
-    if (isLoggingIn) {
-      return '/inbound';
+    if (isLoggingIn) { // Jika sudah login tapi mencoba ke /login
+      return '/inbound'; // Arahkan ke dashboard
     }
-    return null;
+    return null; // Biarkan navigasi berjalan normal
   },
+  // --- Daftar Rute ---
   routes: [
     GoRoute(
-      path: '/',
-      redirect: (_, __) => '/inbound',
+      path: '/', // Root path
+      redirect: (_, __) => '/inbound', // Otomatis redirect ke /inbound
     ),
     GoRoute(
-      path: '/scanner',
+      path: '/scanner', // Halaman pemindai
       pageBuilder: (context, state) => CustomTransitionPage(
         child: const ScannerScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-            SlideTransition(
-          position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-              .animate(animation),
+            SlideTransition( // Animasi muncul dari bawah
+          position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(animation),
           child: child,
         ),
       ),
     ),
     GoRoute(
-      path: '/login',
+      path: '/login', // Halaman login
       builder: (context, state) => const LoginScreen(),
     ),
+    // --- Rute Utama di dalam Dashboard (Menggunakan ShellRoute) ---
     ShellRoute(
       builder: (context, state, child) {
-        return DashboardScreen(child: child);
+        return DashboardScreen(child: child); // Dashboard sebagai 'bingkai'
       },
       routes: [
+        // --- Modul Penerimaan Barang ---
         GoRoute(
           path: '/inbound',
-          builder: (context, state) => const InboundListScreen(),
+          builder: (context, state) => const InboundListScreen(), // Halaman daftar & input
           routes: [
+            // Rute 'add' sudah dihapus
             GoRoute(
-              path: 'add',
-              pageBuilder: (context, state) => CustomTransitionPage<void>(
-                key: state.pageKey,
-                child: const AddInboundScreen(),
-                transitionsBuilder:
-                    (context, animation, secondaryAnimation, child) =>
-                        FadeTransition(opacity: animation, child: child),
-              ),
-            ),
-            GoRoute(
-              path: ':transactionId',
+              path: ':transactionId', // Halaman detail (menggunakan ID dari URL)
               builder: (context, state) {
                 final transactionId = int.tryParse(state.pathParameters['transactionId'] ?? '');
                 if (transactionId == null) {
@@ -140,27 +139,22 @@ final GoRouter _router = GoRouter(
             ),
           ],
         ),
+        // --- Modul Pengeluaran Barang ---
         GoRoute(
           path: '/outbound',
-          builder: (context, state) => const OutboundListScreen(),
+          builder: (context, state) => const OutboundListScreen(), // Halaman daftar & input
           routes: [
+            // Rute 'add' sudah dihapus
             GoRoute(
-              path: 'add',
-              pageBuilder: (context, state) => CustomTransitionPage(
-                child: const AddOutboundScreen(),
-                transitionsBuilder: (context, anim, secAnim, child) =>
-                    FadeTransition(opacity: anim, child: child),
-              ),
-            ),
-            GoRoute(
-              path: 'picking',
+              path: 'picking', // Halaman pengambilan barang
               builder: (context, state) {
+                // Halaman picking masih butuh data transaksi awal
                 final transaction = state.extra as Map<String, dynamic>;
                 return PickingScreen(transaction: transaction);
               },
             ),
             GoRoute(
-              path: ':transactionId',
+              path: ':transactionId', // Halaman detail (menggunakan ID dari URL)
               builder: (context, state) {
                 final transactionId = int.tryParse(state.pathParameters['transactionId'] ?? '');
                  if (transactionId == null) {
@@ -171,9 +165,10 @@ final GoRouter _router = GoRouter(
             ),
           ],
         ),
+        // --- Modul Data Master ---
         GoRoute(
           path: '/master-data',
-          builder: (context, state) => const DataBahanBakuScreen(),
+          builder: (context, state) => const DataBahanBakuScreen(), // Menunjuk ke widget placeholder
         ),
       ],
     ),

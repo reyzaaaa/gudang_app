@@ -53,7 +53,7 @@ class _InboundDetailView extends ConsumerStatefulWidget {
 
 class _InboundDetailViewState extends ConsumerState<_InboundDetailView> {
   late Map<String, dynamic> _currentTransaction;
-  List<String> _scannedCodes = [];
+  final List<String> _scannedCodes = [];
   bool _isProcessing = false;
   List<String>? _allocatedRackNumbers;
   bool _isCheckingAllocation = true;
@@ -128,7 +128,7 @@ class _InboundDetailViewState extends ConsumerState<_InboundDetailView> {
     // Tentukan ukuran label Anda di sini (dalam milimeter)
     const double labelWidth = 58 * PdfPageFormat.mm;
     const double labelHeight = 40 * PdfPageFormat.mm;
-    final pageFormat = const PdfPageFormat(labelWidth, labelHeight, marginAll: 3 * PdfPageFormat.mm);
+    const pageFormat = PdfPageFormat(labelWidth, labelHeight, marginAll: 3 * PdfPageFormat.mm);
 
     final pdf = pw.Document();
     final String itemCode = item['item_code'];
@@ -163,7 +163,7 @@ class _InboundDetailViewState extends ConsumerState<_InboundDetailView> {
 
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
-      name: 'Barcodes_${itemCode}.pdf',
+      name: 'Barcodes_$itemCode.pdf',
     );
   }
 

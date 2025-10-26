@@ -1,25 +1,183 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:go_router/go_router.dart'; // Import GoRouter untuk navigasi
 import 'package:gudang_app/features/outbound/providers/outbound_providers.dart';
+import 'package:gudang_app/main.dart'; // Untuk akses supabase
 import 'package:intl/intl.dart';
 
-class OutboundListScreen extends ConsumerWidget {
+class OutboundListScreen extends ConsumerStatefulWidget {
   const OutboundListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OutboundListScreen> createState() => _OutboundListScreenState();
+}
+
+class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _kodeBarangController = TextEditingController();
+  final _namaBarangController = TextEditingController();
+  final _unitController = TextEditingController();
+  final _qtyController = TextEditingController();
+  int? _selectedItemId;
+  int? _selectedItemStock;
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    _kodeBarangController.dispose();
+    _namaBarangController.dispose();
+    _unitController.dispose();
+    _qtyController.dispose();
+    super.dispose();
+  }
+
+  void _resetForm() {
+    _formKey.currentState?.reset();
+    _kodeBarangController.clear();
+    _namaBarangController.clear();
+    _unitController.clear();
+    _qtyController.clear();
+    if (mounted) {
+      setState(() {
+        _selectedItemId = null;
+        _selectedItemStock = null;
+        _isSaving = false;
+      });
+    }
+  }
+
+  Future<void> _submitForm() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => _isSaving = true);
+      try {
+        await supabase.from('transactions').insert({
+          'item_id': _selectedItemId,
+          'type': 'outbound',
+          'quantity': int.parse(_qtyController.text),
+          'transaction_date': DateTime.now().toIso8601String(),
+          'user_id': supabase.auth.currentUser!.id,
+          // status 'pending' ditambahkan otomatis oleh database
+        });
+        ref.invalidate(outboundHistoryProvider);
+        _resetForm();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permintaan berhasil dibuat!'), backgroundColor: Colors.green));
+        }
+      } catch (e) {
+        if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red));
+      } finally {
+        if(mounted) setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final selectedDate = ref.watch(selectedDateOutboundProvider);
     final selectedDateNotifier = ref.read(selectedDateOutboundProvider.notifier);
     final historyAsyncValue = ref.watch(outboundHistoryProvider);
+    final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: Colors.transparent, // Membuat latar transparan
+    return Scaffold( // Scaffold dibutuhkan karena ada FAB
+      backgroundColor: Colors.transparent,
       body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // --- Bagian Form Input ---
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 16, 10),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Buat Permintaan Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                       Autocomplete<Map<String, dynamic>>(
+                         displayStringForOption: (option) => option['item_code'],
+                         optionsBuilder: (value) async {
+                           if (value.text.isEmpty) {
+                             if (_selectedItemStock != null) {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                   if (mounted) {
+                                     setState(() => _selectedItemStock = null);
+                                   }
+                                });
+                             }
+                             return const Iterable.empty();
+                           }
+                           final response = await supabase.from('items').select('id, item_code, item_name, unit, total_stok').ilike('item_code', '%${value.text}%');
+                           return response;
+                         },
+                         onSelected: (selection) {
+                           setState(() {
+                             _selectedItemId = selection['id'];
+                             _namaBarangController.text = selection['item_name'];
+                             _unitController.text = selection['unit'];
+                             _selectedItemStock = selection['total_stok'] ?? 0;
+                           });
+                         },
+                         fieldViewBuilder: (context, controller, focusNode, onSubmitted) {
+                            _kodeBarangController.addListener(() { if (controller.text != _kodeBarangController.text) controller.value = _kodeBarangController.value; });
+                            controller.addListener(() { if (controller.text != _kodeBarangController.text) _kodeBarangController.value = controller.value; });
+                           return TextFormField(
+                             controller: controller,
+                             focusNode: focusNode,
+                             decoration: const InputDecoration(labelText: 'Kode Barang', isDense: true, suffixIcon: Icon(Icons.search, size: 20)),
+                             validator: (val) => _selectedItemId == null ? 'Pilih!' : null,
+                           );
+                         },
+                       ),
+                      const SizedBox(height: 8),
+                      TextFormField(controller: _namaBarangController, readOnly: true, decoration: const InputDecoration(labelText: 'Nama Barang', isDense: true, filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none)),
+                      Visibility(
+                        visible: _selectedItemStock != null,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            'Stok Tersedia: ${_selectedItemStock ?? 0}',
+                            style: TextStyle( color: (_selectedItemStock ?? 0) > 0 ? Colors.green.shade800 : Colors.red.shade800, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: TextFormField(controller: _qtyController, decoration: const InputDecoration(labelText: 'Qty', isDense: true), keyboardType: TextInputType.number, validator: (val) {
+                             if (val == null || val.isEmpty) return 'Qty!';
+                             final reqQty = int.tryParse(val);
+                             if (reqQty == null || reqQty <= 0) return '> 0!';
+                             if (_selectedItemStock != null) {
+                               if (_selectedItemStock == 0) return 'Stok 0!';
+                               if (reqQty > _selectedItemStock!) return 'Over!';
+                             } return null;
+                          })),
+                          const SizedBox(width: 8),
+                          Expanded(child: TextFormField(controller: _unitController, readOnly: true, decoration: const InputDecoration(labelText: 'Unit', isDense: true, filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none))),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _isSaving ? null : _submitForm,
+                        icon: _isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send),
+                        label: Text(_isSaving ? 'Membuat...' : 'Buat Permintaan'),
+                        style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // --- Bagian Histori ---
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 16, 10),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -33,10 +191,10 @@ class OutboundListScreen extends ConsumerWidget {
                 TextButton.icon(
                   onPressed: () async {
                     final pickedDate = await showDatePicker(
-                      context: context,
+                      context: context, // Ditambahkan
                       initialDate: selectedDate,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime.now(),
+                      firstDate: DateTime(2020), // Ditambahkan
+                      lastDate: DateTime.now(),   // Ditambahkan
                       locale: const Locale('id', 'ID'),
                     );
                     if (pickedDate != null) {
@@ -50,6 +208,7 @@ class OutboundListScreen extends ConsumerWidget {
             ),
           ),
           const Divider(height: 1, thickness: 1, indent: 24, endIndent: 24),
+          // --- Daftar Histori ---
           Expanded(
             child: historyAsyncValue.when(
               data: (transactions) {
@@ -71,7 +230,7 @@ class OutboundListScreen extends ConsumerWidget {
                 return RefreshIndicator(
                   onRefresh: () => ref.refresh(outboundHistoryProvider.future),
                   child: ListView.builder(
-                    padding: const EdgeInsets.only(top: 8, bottom: 80),
+                    padding: const EdgeInsets.only(top: 8, bottom: 80), // Padding untuk FAB
                     itemCount: transactions.length,
                     itemBuilder: (context, index) {
                       final trx = transactions[index];
@@ -91,9 +250,9 @@ class OutboundListScreen extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(12),
                           onTap: () {
                             if (status == 'pending') {
-                              context.go('/outbound/picking', extra: trx);
+                              GoRouter.of(context).go('/outbound/picking', extra: trx);
                             } else {
-                              context.go('/outbound/${trx['id']}');
+                              GoRouter.of(context).go('/outbound/${trx['id']}');
                             }
                           },
                           child: Padding(
@@ -154,6 +313,8 @@ class OutboundListScreen extends ConsumerWidget {
                           ),
                         ),
                       );
+                      // Fallback return
+                      // return Container();
                     },
                   ),
                 );
@@ -164,12 +325,11 @@ class OutboundListScreen extends ConsumerWidget {
           ),
         ],
       ),
+      // FAB dikembalikan ke sini
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          context.go('/outbound/add');
-        },
-        tooltip: 'Buat Permintaan Baru',
-        child: const Icon(Icons.add),
+        onPressed: _resetForm,
+        tooltip: 'Reset Form',
+        child: const Icon(Icons.refresh),
       ),
     );
   }
