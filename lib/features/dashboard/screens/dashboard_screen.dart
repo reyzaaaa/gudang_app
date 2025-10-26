@@ -52,18 +52,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final int selectedIndex = _calculateSelectedIndex(context);
-        final String location = GoRouterState.of(context).matchedLocation;
         final theme = Theme.of(context);
 
         const double mobileBreakpoint = 700;
         final bool isDesktop = constraints.maxWidth > mobileBreakpoint;
 
-        final bool showFab = location == '/inbound' || location == '/outbound';
-        final VoidCallback? fabAction = location == '/inbound' 
-          ? () => context.go('/inbound/add') 
-          : (location == '/outbound' ? () => context.go('/outbound/add') : null);
+        // ===============================================
+        // VARIABEL showFab DAN fabAction DIHAPUS DARI SINI
+        // ===============================================
 
-        // Definisikan warna biru muda di sini
         const mobileNavbarColor = Color(0xFFD6E4FF);
 
         return Scaffold(
@@ -92,7 +89,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           
           body: isDesktop 
             ? _buildDesktopLayout(context, selectedIndex, theme)
-            : Container(color: Colors.white, child: widget.child), // Konten mobile dengan bg putih
+            : Container(color: Colors.white, child: widget.child), 
 
           bottomNavigationBar: isDesktop 
             ? null 
@@ -120,12 +117,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               
-          floatingActionButton: showFab ? FloatingActionButton(
-            onPressed: fabAction,
-            backgroundColor: theme.colorScheme.primary,
-            foregroundColor: Colors.white,
-            child: const Icon(Icons.add),
-          ) : null,
+          // ===============================================
+          // floatingActionButton DIHAPUS DARI SINI
+          // ===============================================
+          
         );
       },
     );

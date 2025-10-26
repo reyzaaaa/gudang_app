@@ -14,8 +14,9 @@ class OutboundListScreen extends ConsumerStatefulWidget {
 
 class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _tanggalController = TextEditingController(); // Controller untuk tanggal
   final _kodeBarangController = TextEditingController();
-  final _namaBarangController = TextEditingController();
+  final _namaBarangController = TextEditingController(); // Controller Autocomplete
   final _unitController = TextEditingController();
   final _qtyController = TextEditingController();
   int? _selectedItemId;
@@ -23,7 +24,14 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
   bool _isSaving = false;
 
   @override
+  void initState() {
+    super.initState();
+    _resetForm();
+  }
+
+  @override
   void dispose() {
+    _tanggalController.dispose();
     _kodeBarangController.dispose();
     _namaBarangController.dispose();
     _unitController.dispose();
@@ -33,6 +41,7 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
 
   void _resetForm() {
     _formKey.currentState?.reset();
+    _tanggalController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
     _kodeBarangController.clear();
     _namaBarangController.clear();
     _unitController.clear();
@@ -46,15 +55,34 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
     }
   }
 
+  // Fungsi pilih tanggal ditambahkan
+  Future<void> _selectDate() async {
+    DateTime? picked = await showDatePicker(
+        context: context,
+        initialDate: DateTime.now(),
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2101),
+        locale: const Locale('id', 'ID'));
+    if (picked != null) {
+      setState(() {
+        _tanggalController.text = DateFormat('yyyy-MM-dd').format(picked);
+      });
+    }
+  }
+
   Future<void> _submitForm() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isSaving = true);
       try {
+        final pickedDate = DateFormat('yyyy-MM-dd').parse(_tanggalController.text);
+        final now = DateTime.now();
+        final finalDateTime = DateTime(pickedDate.year, pickedDate.month, pickedDate.day, now.hour, now.minute, now.second);
+
         await supabase.from('transactions').insert({
           'item_id': _selectedItemId,
           'type': 'outbound',
           'quantity': int.parse(_qtyController.text),
-          'transaction_date': DateTime.now().toIso8601String(),
+          'transaction_date': finalDateTime.toIso8601String(),
           'user_id': supabase.auth.currentUser!.id,
           // status 'pending' ditambahkan otomatis oleh database
         });
@@ -78,7 +106,7 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
     final historyAsyncValue = ref.watch(outboundHistoryProvider);
     final theme = Theme.of(context);
 
-    // Langsung return Column, tanpa Scaffold
+    // Langsung return Column, tanpa Scaffold dan FAB
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -97,14 +125,18 @@ class _OutboundListScreenState extends ConsumerState<OutboundListScreen> {
                   children: [
                     Text("Buat Permintaan Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
-                    // Field Tanggal (Tidak bisa diedit)
+                    // Field Tanggal (Sekarang bisa diedit)
                     TextFormField(
-                      controller: TextEditingController(text: DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(DateTime.now())),
+                      controller: _tanggalController,
                       readOnly: true,
-                      decoration: const InputDecoration(labelText: 'Tanggal Permintaan', isDense: true, filled: false, border: InputBorder.none, enabledBorder: InputBorder.none, focusedBorder: InputBorder.none),
+                      decoration: InputDecoration(
+                        labelText: 'Tanggal Permintaan',
+                        isDense: true,
+                        suffixIcon: IconButton(icon: const Icon(Icons.calendar_today, size: 20), onPressed: _selectDate, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    Autocomplete<Map<String, dynamic>>(
+                     Autocomplete<Map<String, dynamic>>(
                        displayStringForOption: (option) => option['item_name'], // Tampilkan nama
                        optionsBuilder: (value) async {
                          if (value.text.isEmpty) {
