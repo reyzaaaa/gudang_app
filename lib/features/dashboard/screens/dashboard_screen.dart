@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:gudang_app/main.dart';
+import 'package:gudang_app/main.dart'; // Pastikan import supabase dari main.dart
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({
@@ -21,6 +21,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (location.startsWith('/inbound')) return 0;
     if (location.startsWith('/outbound')) return 1;
     if (location.startsWith('/master-data')) return 2;
+    if (location.startsWith('/rack-storage')) return 3; // Index 3 untuk Rak
     return 0;
   }
   
@@ -29,6 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 0: return 'Penerimaan Barang';
       case 1: return 'Pengeluaran Barang';
       case 2: return 'Data Bahan Baku';
+      case 3: return 'Rak Penyimpanan';
       default: return 'Dashboard';
     }
   }
@@ -44,6 +46,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 2:
         context.go('/master-data');
         break;
+      case 3:
+        context.go('/rack-storage'); // Navigasi ke Rak
+        break;
     }
   }
 
@@ -56,10 +61,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         const double mobileBreakpoint = 700;
         final bool isDesktop = constraints.maxWidth > mobileBreakpoint;
-
-        // ===============================================
-        // VARIABEL showFab DAN fabAction DIHAPUS DARI SINI
-        // ===============================================
 
         const mobileNavbarColor = Color(0xFFD6E4FF);
 
@@ -77,6 +78,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 icon: const Icon(Icons.logout_outlined, color: Colors.black54),
                 tooltip: 'Logout',
                 onPressed: () async {
+                  // Pastikan instance supabase tersedia/diimport
                   await supabase.auth.signOut();
                   if (context.mounted) {
                     context.go('/login');
@@ -112,15 +114,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   BottomNavigationBarItem(
                     icon: Icon(Icons.inventory_2_outlined),
-                    label: 'Data Master',
+                    label: 'Bahan Baku',
+                  ),
+                  // --- ITEM MENU MOBILE (Baru) ---
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.shelves), 
+                    label: 'Rak',
                   ),
                 ],
               ),
-              
-          // ===============================================
-          // floatingActionButton DIHAPUS DARI SINI
-          // ===============================================
-          
         );
       },
     );
@@ -132,7 +134,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         NavigationRail(
           selectedIndex: selectedIndex,
           onDestinationSelected: (index) => _onDestinationSelected(index, context),
-          extended: true,
+          extended: true, // Menu samping diperluas agar teks terlihat
           minExtendedWidth: 240,
           backgroundColor: Colors.white,
           useIndicator: true,
@@ -153,6 +155,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             NavigationRailDestination(
               icon: Icon(Icons.inventory_2_outlined),
               label: Text('Data Bahan Baku'),
+            ),
+            // --- ITEM MENU DESKTOP / KIRI (Baru) ---
+            NavigationRailDestination(
+              icon: Icon(Icons.shelves), // Icon untuk Rak
+              label: Text('Rak Penyimpanan'),
             ),
           ],
         ),
