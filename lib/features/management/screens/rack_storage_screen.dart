@@ -1,24 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:gudang_app/features/management/widgets/items_tab.dart';
+import 'package:gudang_app/features/management/widgets/racks_tab.dart';
 
-class MasterDataScreen extends StatelessWidget {
-  const MasterDataScreen({super.key});
+class RackStorageScreen extends StatelessWidget {
+  const RackStorageScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      // Opsional: Anda bisa menambahkan AppBar dengan judul jika widget ItemsTab belum memilikinya
       appBar: AppBar(
         title: const Text(
-          'Data Bahan Baku',
+          'Rak Penyimpanan',
           style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
         elevation: 0.5,
         iconTheme: const IconThemeData(color: Colors.black87),
       ),
-      body: const ItemsTab(), // Langsung menampilkan konten Bahan Baku
+      body: const RacksTab(), // Langsung menampilkan konten Rak
     );
   }
 }

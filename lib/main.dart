@@ -4,11 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:gudang_app/features/auth/screens/login_screen.dart';
-import 'package:gudang_app/features/dashboard/screens/dashboard_screen.dart';
+import 'package:gudang_app/features/dashboard/screens/dashboard_screen.dart'; // Pastikan path ini sesuai dengan lokasi file Dashboard Anda
 import 'package:gudang_app/features/global/screens/scanner_screen.dart';
 import 'package:gudang_app/features/inbound/screens/inbound_detail_screen.dart';
 import 'package:gudang_app/features/inbound/screens/inbound_list_screen.dart';
 import 'package:gudang_app/features/management/screens/master_data_screen.dart';
+import 'package:gudang_app/features/management/screens/rack_storage_screen.dart'; // IMPORT BARU
 import 'package:gudang_app/features/outbound/screens/outbound_detail_screen.dart';
 import 'package:gudang_app/features/outbound/screens/outbound_list_screen.dart';
 import 'package:gudang_app/features/outbound/screens/picking_screen.dart';
@@ -126,7 +127,6 @@ final GoRouter _router = GoRouter(
           path: '/inbound',
           builder: (context, state) => const InboundListScreen(), // Halaman daftar & input
           routes: [
-            // Rute 'add' sudah dihapus
             GoRoute(
               path: ':transactionId', // Halaman detail (menggunakan ID dari URL)
               builder: (context, state) {
@@ -144,7 +144,6 @@ final GoRouter _router = GoRouter(
           path: '/outbound',
           builder: (context, state) => const OutboundListScreen(), // Halaman daftar & input
           routes: [
-            // Rute 'add' sudah dihapus
             GoRoute(
               path: 'picking', // Halaman pengambilan barang
               builder: (context, state) {
@@ -165,10 +164,15 @@ final GoRouter _router = GoRouter(
             ),
           ],
         ),
-        // --- Modul Data Master ---
+        // --- Modul Data Master (Bahan Baku) ---
         GoRoute(
           path: '/master-data',
-          builder: (context, state) => const DataBahanBakuScreen(), // Menunjuk ke widget placeholder
+          builder: (context, state) => const DataBahanBakuScreen(), // Menunjuk ke widget placeholder/MasterDataScreen
+        ),
+        // --- Modul Rak Penyimpanan (BARU) ---
+        GoRoute(
+          path: '/rack-storage',
+          builder: (context, state) => const RackStorageScreen(), // Halaman Rak Baru
         ),
       ],
     ),
