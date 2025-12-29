@@ -4,7 +4,7 @@ import 'package:excel/excel.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gudang_app/features/auth/providers/auth_providers.dart'; // Import provider role
+import 'package:gudang_app/features/auth/providers/auth_providers.dart';
 import 'package:gudang_app/main.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -32,8 +32,15 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
   final _addItemFormKey = GlobalKey<FormState>();
   final _newCodeController = TextEditingController();
   final _newNameController = TextEditingController();
+  
+  // Controller Baru untuk Auto-Generate
+  final _warehouseCodeController = TextEditingController(text: "01"); // Default 01
+  final _micronController = TextEditingController();
+  final _widthController = TextEditingController();
+  final _lengthController = TextEditingController();
+
   final List<String> _units = ['Kg', 'Roll', 'Pcs', 'Box', 'Liter'];
-  String? _newUnit;
+  String? _newUnit = 'Roll'; // Default Roll
   bool _isSavingItem = false;
 
   // State Pencarian & Ekspor
@@ -42,12 +49,96 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
   bool _isExporting = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Tambahkan listener agar kode ter-update otomatis saat user mengetik
+    _newNameController.addListener(_generateAutoCode);
+    _warehouseCodeController.addListener(_generateAutoCode);
+    _micronController.addListener(_generateAutoCode);
+    _widthController.addListener(_generateAutoCode);
+    _lengthController.addListener(_generateAutoCode);
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     _debounce?.cancel();
     _newCodeController.dispose();
     _newNameController.dispose();
+    _warehouseCodeController.dispose();
+    _micronController.dispose();
+    _widthController.dispose();
+    _lengthController.dispose();
     super.dispose();
+  }
+
+  // LOGIKA AUTO GENERATE KODE
+  void _generateAutoCode() {
+    // Ambil 3 huruf pertama dari nama (Contoh: OPP, PET)
+    String namePart = _newNameController.text.trim();
+    if (namePart.length > 3) {
+      namePart = namePart.substring(0, 3).toUpperCase();
+    } else {
+      namePart = namePart.toUpperCase();
+    }
+
+    String warehouse = _warehouseCodeController.text.trim();
+    String micron = _micronController.text.trim();
+    String width = _widthController.text.trim();
+    String length = _lengthController.text.trim();
+
+    // Gabungkan menjadi kode unik tanpa spasi
+    setState(() {
+      _newCodeController.text = '$warehouse$namePart$micron$width$length'.replaceAll(' ', '');
+    });
+  }
+
+  // FUNGSI SIMPAN
+  Future<void> _saveNewItem() async {
+    if (_addItemFormKey.currentState!.validate()) {
+      setState(() => _isSavingItem = true);
+      try {
+        // Format Nama Barang Lengkap: "OPP 20 MIC, 980MM, 8000M"
+        final String fullName = "${_newNameController.text.trim().toUpperCase()} "
+            "${_micronController.text.trim()} MIC, "
+            "${_widthController.text.trim()}MM, "
+            "${_lengthController.text.trim()}M";
+
+        await supabase.from('items').insert({
+          'item_code': _newCodeController.text.trim().toUpperCase(),
+          'item_name': fullName,
+          'unit': _newUnit,
+        });
+
+        ref.invalidate(masterItemsProvider);
+        _clearForm();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Bahan baku baru berhasil disimpan.'), backgroundColor: Colors.green)
+          );
+        }
+      } on PostgrestException catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal: ${e.message.contains("duplicate") ? "Kode barang sudah ada." : e.message}'), backgroundColor: Colors.red),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isSavingItem = false);
+      }
+    }
+  }
+
+  void _clearForm() {
+    _newNameController.clear();
+    _micronController.clear();
+    _widthController.clear();
+    _lengthController.clear();
+    _newCodeController.clear();
+    setState(() {
+      _newUnit = 'Roll';
+    });
   }
 
   // Fungsi Ekspor Excel
@@ -121,38 +212,6 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
      }
   }
 
-  // Fungsi Simpan Item Baru
-  Future<void> _saveNewItem() async {
-    if (_addItemFormKey.currentState!.validate()) {
-      setState(() => _isSavingItem = true);
-      try {
-        await supabase.from('items').insert({
-          'item_code': _newCodeController.text.trim().toUpperCase(),
-          'item_name': _newNameController.text.trim(),
-          'unit': _newUnit,
-        });
-        ref.invalidate(masterItemsProvider);
-        _addItemFormKey.currentState?.reset();
-        _newCodeController.clear();
-        _newNameController.clear();
-        setState(() => _newUnit = null);
-        if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bahan baku baru berhasil disimpan.'), backgroundColor: Colors.green));
-        }
-      } on PostgrestException catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Gagal: ${e.message.contains("duplicate key") ? "Kode barang sudah ada." : e.message}'), backgroundColor: Colors.red),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isSavingItem = false);
-        }
-      }
-    }
-  }
-
   // Fungsi Hapus Item
   Future<void> _deleteItem(int itemId, String itemName) async {
     final confirm = await showDialog<bool>(
@@ -190,7 +249,7 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
   Widget build(BuildContext context) {
     final itemsAsyncValue = ref.watch(masterItemsProvider);
     final theme = Theme.of(context);
-    final bool isStaff = ref.watch(isStaffProvider); // Cek peran
+    final bool isStaff = ref.watch(isStaffProvider);
 
     return Column(
       children: [
@@ -200,7 +259,7 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Card(
-              elevation: 2,
+              elevation: 3,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -210,33 +269,109 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text("Tambah Bahan Baku Baru", style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 16),
+                      
+                      // Baris 1: Kode Gudang & Nama Barang
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 1,
+                            child: TextFormField(
+                              controller: _warehouseCodeController,
+                              decoration: const InputDecoration(labelText: 'Kd Gudang', isDense: true, border: OutlineInputBorder()),
+                              validator: (v) => (v == null || v.isEmpty) ? 'Wajib' : null,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 3,
+                            child: TextFormField(
+                              controller: _newNameController,
+                              decoration: const InputDecoration(labelText: 'Nama Barang (Contoh: OPP)', isDense: true, border: OutlineInputBorder()),
+                              validator: (v) => (v == null || v.isEmpty) ? 'Wajib diisi' : null,
+                            ),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 12),
-                      TextFormField(
-                        controller: _newCodeController,
-                        decoration: const InputDecoration(labelText: 'Kode Barang Baru', isDense: true),
-                        textCapitalization: TextCapitalization.characters,
-                        validator: (value) => (value == null || value.isEmpty) ? 'Wajib diisi' : null,
+
+                      // Baris 2: Spek (Micron, Lebar, Meter)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _micronController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: 'Micron', suffixText: 'mic', isDense: true, border: OutlineInputBorder()),
+                              validator: (v) => (v == null || v.isEmpty) ? 'Wajib' : null,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _widthController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: 'Lebar', suffixText: 'mm', isDense: true, border: OutlineInputBorder()),
+                              validator: (v) => (v == null || v.isEmpty) ? 'Wajib' : null,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _lengthController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: 'Meteran', suffixText: 'm', isDense: true, border: OutlineInputBorder()),
+                              validator: (v) => (v == null || v.isEmpty) ? 'Wajib' : null,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _newNameController,
-                        decoration: const InputDecoration(labelText: 'Nama Barang', isDense: true),
-                        validator: (value) => (value == null || value.isEmpty) ? 'Wajib diisi' : null,
-                      ),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: _newUnit,
-                        decoration: const InputDecoration(labelText: 'Unit', isDense: true),
-                        items: _units.map((String unit) => DropdownMenuItem<String>(value: unit, child: Text(unit))).toList(),
-                        onChanged: (value) => setState(() => _newUnit = value),
-                        validator: (value) => value == null ? 'Pilih unit' : null,
+                      const SizedBox(height: 12),
+
+                      // Baris 3: Preview Kode (Read Only) & Unit
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextFormField(
+                              controller: _newCodeController,
+                              readOnly: true,
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                              decoration: InputDecoration(
+                                labelText: 'Generate Kode Otomatis',
+                                isDense: true,
+                                fillColor: Colors.blue.shade50,
+                                filled: true,
+                                border: const OutlineInputBorder(),
+                                prefixIcon: const Icon(Icons.auto_fix_high, size: 20),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 1,
+                            child: DropdownButtonFormField<String>(
+                              value: _newUnit,
+                              decoration: const InputDecoration(labelText: 'Unit', isDense: true, border: OutlineInputBorder()),
+                              items: _units.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                              onChanged: (value) => setState(() => _newUnit = value),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
+                      
                       ElevatedButton.icon(
                         onPressed: _isSavingItem ? null : _saveNewItem,
-                        icon: _isSavingItem ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add_circle_outline),
+                        icon: _isSavingItem 
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) 
+                            : const Icon(Icons.add_circle_outline),
                         label: Text(_isSavingItem ? 'Menyimpan...' : 'Tambah Bahan Baku'),
-                        style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 48),
+                          backgroundColor: Colors.blue.shade700,
+                          foregroundColor: Colors.white,
+                        ),
                       )
                     ],
                   ),
@@ -258,7 +393,7 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
            ),
          ),
 
-        // --- Baris Pencarian & Ekspor ---
+        // Baris Pencarian & Ekspor
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Row(
@@ -291,13 +426,12 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
                  loading: () => const SizedBox.shrink(),
                  error: (e, s) => IconButton(icon: const Icon(Icons.error_outline), tooltip: 'Gagal Memuat', onPressed: (){}),
               ),
-              // Tombol Tambah dihapus dari sini
             ],
           ),
         ),
         const Divider(height: 1, thickness: 1, indent: 24, endIndent: 24),
 
-        // --- Daftar Barang ---
+        // Daftar Barang
         Expanded(
           child: itemsAsyncValue.when(
             data: (items) {
@@ -330,7 +464,7 @@ class _ItemsTabState extends ConsumerState<ItemsTab> {
                                crossAxisAlignment: CrossAxisAlignment.start,
                                children: [
                                  Expanded(child: Text(item['item_name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
-                                 if (!isStaff) // Tampilkan tombol hapus jika bukan staff
+                                 if (!isStaff) 
                                    InkWell(
                                      onTap: () => _deleteItem(item['id'], item['item_name']),
                                      child: const Padding(
